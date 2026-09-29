@@ -138,6 +138,10 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18p
 .rk .fill{position:absolute;left:0;top:0;bottom:0;border-radius:0 4px 4px 0;min-width:2px;display:flex;overflow:hidden}
 .rk .fill i{display:block;height:100%;min-width:1px}
 .rk .fill i.g{opacity:.38}
+.rtabs{display:flex;gap:4px;flex-wrap:wrap;margin:-4px 0 12px;padding:3px;background:color-mix(in srgb,var(--text) 5%,transparent);border-radius:10px;width:fit-content;max-width:100%}
+.rtabs button{border:0;background:none;border-radius:7px;padding:5px 12px;font-size:13px;font-weight:600;color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rtabs button:hover{color:var(--text)}
+.rtabs button.on{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--line)}
 .rkkey{display:flex;gap:14px;font-size:12.5px;color:var(--muted);margin:0 0 10px 6px}
 .rkkey span{display:inline-flex;align-items:center;gap:6px}
 .rkkey i{width:14px;height:8px;border-radius:2px;background:var(--text2);display:inline-block}
@@ -230,10 +234,10 @@ details summary .ss{font-weight:500;color:var(--muted);font-size:13px}
       원본을 추가하면 다음 갱신 때 <b>추가한 폴더만</b> 새로 훑습니다. 드라이브 최상위(D:\ 같은)는 크롬이 고르게 해 주지 않아요.<br>
       권한을 물으면 <b>"방문할 때마다 허용"</b>을 고르세요. 그래야 매번 다시 묻지 않습니다.</p>
       <label class="opt"><input type="checkbox" id="optAuto">
-        <span>새로 들어온 사진의 원본을 못 찾으면 원본 폴더를 자동으로 다시 훑기<br><span style="color:var(--muted)">원본 쪽에 새로 넣은 폴더도 반영돼요. 대신 그날은 갱신이 5~20분 걸립니다.</span></span></label>
+        <span>새로 들어온 사진의 원본을 못 찾으면 원본 폴더의 새 파일을 자동으로 확인하기<br><span style="color:var(--muted)">원본에 새로 넣은 사진도 반영돼요. 이미 아는 파일은 다시 열지 않고 새 파일만 확인합니다.</span></span></label>
       <div class="foot">
         <button class="btn sm ghost" id="resetBtn">기록 전부 지우기</button>
-        <button class="btn sm" id="rescanBtn">원본 다시 훑기</button>
+        <button class="btn sm" id="rescanBtn" title="모든 파일을 다시 열어 확인해요. 오래 걸립니다.">원본 전체 다시 훑기</button>
         <button class="btn sm" id="setupClose">닫기</button>
       </div>
     </section>
@@ -260,6 +264,7 @@ details summary .ss{font-weight:500;color:var(--muted);font-size:13px}
           </section>
           <section class="card">
             <h2>폴더 순위 <span class="sub" id="rankSub"></span></h2>
+            <div class="rtabs" id="rankTabs" role="tablist" hidden></div>
             <div class="rkkey" id="rkKey" hidden><span><i></i>내용 일치</span><span><i class="g"></i>이름으로 추정</span></div>
             <div class="rank" id="rank"></div>
             <div class="more" id="moreWrap" hidden><button class="btn sm ghost" id="moreBtn"></button></div>
@@ -310,7 +315,7 @@ details summary .ss{font-weight:500;color:var(--muted);font-size:13px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION = "v1.3";
+const APP_VERSION = "v1.5";
 const $ = id => document.getElementById(id);
 $("verTop").textContent = APP_VERSION;
 $("verBot").textContent = APP_VERSION;
@@ -390,10 +395,10 @@ function gParts(g){
   return i<0 ? {root:rootName(g), sub:null} : {root:rootName(g.slice(0,i)), sub:g.slice(i+1)};
 }
 function gText(g){ const p=gParts(g); return p.sub ? (S.roots.length>1 ? p.root+" › "+p.sub : p.sub) : p.root; }
-function gHTML(g){
+function gHTML(g, noTag){
   const p=gParts(g);
   if(!p.sub) return `${esc(p.root)}<span class="rtag">전체</span>`;
-  return esc(p.sub) + (S.roots.length>1 ? `<span class="rtag">${esc(p.root)}</span>` : "");
+  return esc(p.sub) + (S.roots.length>1 && !noTag ? `<span class="rtag">${esc(p.root)}</span>` : "");
 }
 function uniqGroups(paths){ return [...new Set(paths.map(groupOf).filter(Boolean))]; }
 // 묶음이 다를 수 있는 경로만 남긴다 (원본id + 첫 폴더 기준)
@@ -420,10 +425,12 @@ async function perm(h, ask){
 
 // 폴더를 통째로 훑어 [상대경로, 크기, 수정시각] 목록을 만든다. 파일은 열지 않는다.
 // 사진이 아닌 파일 수, 못 읽은 폴더·파일도 세어 둔다 (조용히 건너뛰지 않는다).
-async function listDir(root, {signal, onProgress, keep}){
+// prev(상대경로 → [크기,수정시각]) 를 주면 빠른 확인: 이미 아는 파일은 열지 않고 예전 값을 쓴다.
+// 새로 생긴 파일만 연다. 사라진 파일은 목록에 안 나오니 저절로 빠진다.
+async function listDir(root, {signal, onProgress, keep, prev}){
   const out = [], handles = keep ? new Map() : null;
   const queue = [[root,""]];
-  const st = {dirs:0, other:0, otherExt:{}, errDirs:0, errFiles:0, samples:[]};
+  const st = {dirs:0, other:0, otherExt:{}, errDirs:0, errFiles:0, samples:[], reused:0, opened:0};
   const fail = (kind,p,e)=>{ st[kind]++; if(st.samples.length<30) st.samples.push(p+"  ("+(e&&e.name||"오류")+")"); };
   let active = 0, lastPaint = 0;
   async function worker(){
@@ -437,14 +444,18 @@ async function listDir(root, {signal, onProgress, keep}){
         try{
           for await (const [name,h] of dir.entries()){
             if(h.kind==="directory"){ if(name!=="$RECYCLE.BIN" && name!=="System Volume Information") queue.push([h,prefix+name+"/"]); }
-            else if(EXT.test(name)) fh.push([h,prefix+name]);
+            else if(EXT.test(name)){
+              const pv = prev && prev.get(prefix+name);
+              if(pv){ out.push([prefix+name, pv[0], pv[1]]); st.reused++; }
+              else fh.push([h,prefix+name]);
+            }
             else { st.other++; const m=/\.([^.\/]{1,8})$/.exec(name); const x=m?m[1].toLowerCase():"(확장자 없음)"; st.otherExt[x]=(st.otherExt[x]||0)+1; }
           }
         }catch(e){ if(e.name==="AbortError" && signal && signal.aborted) throw e; fail("errDirs", prefix||"(최상위)", e); }
         for(let i=0;i<fh.length;i+=24){
           if(signal && signal.aborted) throw abortErr();
           await Promise.all(fh.slice(i,i+24).map(async ([h,p])=>{
-            try{ const f=await h.getFile(); out.push([p,f.size,f.lastModified]); if(handles) handles.set(p,h); }catch(e){ fail("errFiles",p,e); }
+            try{ const f=await h.getFile(); out.push([p,f.size,f.lastModified]); st.opened++; if(handles) handles.set(p,h); }catch(e){ fail("errFiles",p,e); }
           }));
         }
         st.dirs++;
@@ -556,17 +567,24 @@ function when(t){
 function dur(ms){ const s=Math.round(ms/1000); return s<60?`${s}초`:`${Math.floor(s/60)}분 ${s%60}초`; }
 
 /* ---------- 원본 목록 만들기 ---------- */
-// ids 에 든 원본만 새로 훑는다 (추가한 원본만, 또는 전부)
-async function buildIndex(ids, signal){
+// ids 에 든 원본만 훑는다 (추가한 원본만, 또는 전부).
+// full 이 아니고 예전 목록이 있으면 빠른 확인 — 이름 목록만 비교하고 새 파일만 연다.
+async function buildIndex(ids, signal, full=false){
   if(!S.index) S.index = {gen:0, roots:{}};
   let k = 0;
   for(const id of ids){
     const r = S.rootMap.get(id); if(!r) continue;
     k++;
-    const t0 = performance.now(), label = `원본 목록 만드는 중${ids.length>1?` (${k}/${ids.length})`:""} · ${r.h.name}`;
+    const old = S.index.roots[id];
+    const quick = !full && old && old.files && old.files.length;
+    const prev = quick ? new Map(old.files.map(f=>[f[0],[f[1],f[2]]])) : null;
+    const t0 = performance.now(), label = `${quick?"원본 새 파일 확인 중":"원본 목록 만드는 중"}${ids.length>1?` (${k}/${ids.length})`:""} · ${r.h.name}`;
     prog(label, "폴더를 훑고 있어요", null);
-    const res = await listDir(r.h, {signal, onProgress:(d,n)=>prog(label, `폴더 ${fmt(d)}개 · 사진 ${fmt(n)}장 · ${dur(performance.now()-t0)}`, null)});
-    S.index.roots[id] = {builtAt:Date.now(), name:r.h.name, files:res.files, stat:res.st};
+    const res = await listDir(r.h, {signal, prev, onProgress:(d,n)=>prog(label, `폴더 ${fmt(d)}개 · 사진 ${fmt(n)}장 · ${dur(performance.now()-t0)}`, null)});
+    const added = quick ? res.st.opened : res.files.length;
+    const removed = quick ? Math.max(0, old.files.length - res.st.reused) : 0;
+    S.index.roots[id] = {builtAt:Date.now(), name:r.h.name, files:res.files, stat:res.st,
+      lastRun:{quick:!!quick, took:performance.now()-t0, added, removed}};
     // 이 원본에서 사라진 파일의 지문은 버린다
     const alive = new Set(res.files.map(f=>keyOf(id+"/"+f[0],f[1],f[2])));
     for(const key of Object.keys(S.fpO)) if(key.startsWith(id+"/") && !alive.has(key)) delete S.fpO[key];
@@ -601,11 +619,12 @@ async function refresh(opt={}){
     const tr = await listDir(S.hT, {signal, keep:true, onProgress:(d,n)=>prog("꿀뷰 폴더 읽는 중", `사진 ${fmt(n)}장`, null)});
     const all = S.roots.map(r=>r.id);
     const missing = all.filter(id=>!(S.index && S.index.roots[id]));
-    if(opt.rescan) await buildIndex(all, signal);
+    if(opt.rescan) await buildIndex(all, signal, true);
+    else if(opt.quick) await buildIndex(all, signal);
     else if(missing.length) await buildIndex(missing, signal);
     else if(!S.bySize) buildLookup();
 
-    let rescanned = !!opt.rescan;
+    let rescanned = !!(opt.rescan || opt.quick);
     const sg = sig();
     for(let pass=0; pass<2; pass++){
       const next = {}, todo = [];
@@ -632,8 +651,8 @@ async function refresh(opt={}){
       const fresh = Object.values(S.results).filter(r=>!r.hits.length && !r.npaths.length && r.seen>built).length;
       if(pass===0 && fresh && S.settings.auto && !rescanned){ rescanned = true; await buildIndex(all, signal); continue; }
       if(fresh && !S.settings.auto){
-        msg(`<div class="grow">새로 들어온 사진 중 <b>${fmt(fresh)}장</b>의 원본을 못 찾았어요. 원본 폴더에 새로 넣은 사진이라면 원본을 다시 훑어야 잡힙니다.</div><button class="btn sm" id="msgRescan">원본 다시 훑기</button>`);
-        $("msgRescan").onclick = ()=>refresh({rescan:true});
+        msg(`<div class="grow">새로 들어온 사진 중 <b>${fmt(fresh)}장</b>의 원본을 못 찾았어요. 원본 폴더에 새로 넣은 사진이라면 원본의 새 파일을 확인해야 잡힙니다.</div><button class="btn sm" id="msgRescan">원본 새 파일 확인</button>`);
+        $("msgRescan").onclick = ()=>refresh({quick:true});
       }
       break;
     }
@@ -757,21 +776,32 @@ function render(){
     el.onmouseleave = ()=>hot(0,false);
   });
 
-  // 순위 막대
-  const max = Math.max(1, ...T.rows.map(r=>r[1]), T.dup, T.etc);
-  const show = S.showAll ? T.rows : T.rows.slice(0,RANK_SHOW);
-  $("rankSub").textContent = `폴더 ${fmt(T.rows.length)}개`;
-  let html = show.map(([n,c,g],i)=>rkRow(i+1,gText(n),gHTML(n),c,colors.get(n)||"var(--other)",max,T.total,"",g)).join("");
+  // 순위 막대 — 탭: 전체 / 원본별
+  const tab = S.rootMap.has(S.settings.rankTab) ? S.settings.rankTab : "";
+  const inRoot = g => g===tab || g.startsWith(tab+"/");
+  $("rankTabs").hidden = S.roots.length<2;
+  $("rankTabs").innerHTML = S.roots.length<2 ? "" :
+    [["","전체"], ...S.roots.map(r=>[r.id, r.h.name])].map(([id,n])=>
+      `<button class="${id===tab?"on":""}" data-id="${id}" title="${esc(n)}">${esc(n)}</button>`).join("");
+  $("rankTabs").querySelectorAll("button").forEach(b=>b.onclick=()=>{ S.settings.rankTab=b.dataset.id; S.showAll=false; put("settings",S.settings); render(); });
+  const rows = tab ? T.rows.filter(([g])=>inRoot(g)) : T.rows;
+  const rDup = tab ? T.dups.filter(r=>r.g.some(inRoot)).length : T.dup;
+  const rEtc = tab ? 0 : T.etc;
+  const base_ = tab ? rows.reduce((a,r)=>a+r[1],0) + rDup : T.total;   // 비율의 기준
+  const max = Math.max(1, ...rows.map(r=>r[1]), rDup, rEtc);
+  const show = S.showAll ? rows : rows.slice(0,RANK_SHOW);
+  $("rankSub").textContent = tab ? `폴더 ${fmt(rows.length)}개 · 이 원본 ${fmt(base_)}장 기준` : `폴더 ${fmt(rows.length)}개`;
+  let html = show.map(([n,c,g],i)=>rkRow(i+1,gText(n),tab?gHTML(n,true):gHTML(n),c,colors.get(n)||"var(--other)",max,base_,"",g)).join("");
   const sp = [];
-  if(T.dup) sp.push(["중복", T.dup, "var(--dup)"]);
-  if(T.etc) sp.push(["기타", T.etc, "var(--etc-bg)"]);
-  html += sp.map(([n,c,col],i)=>rkRow("",n,n,c,col,max,T.total,i===0&&show.length?"sep special":"special")).join("");
+  if(rDup) sp.push([tab?"다른 원본과 중복":"중복", rDup, "var(--dup)"]);
+  if(rEtc) sp.push(["기타", rEtc, "var(--etc-bg)"]);
+  html += sp.map(([n,c,col],i)=>rkRow("",n,n,c,col,max,base_,i===0&&show.length?"sep special":"special")).join("");
   $("rank").innerHTML = html || `<div class="empty" style="padding:20px">표시할 사진이 없어요</div>`;
-  $("moreWrap").hidden = T.rows.length<=RANK_SHOW;
-  $("moreBtn").textContent = S.showAll ? "상위 20개만 보기" : `나머지 ${T.rows.length-RANK_SHOW}개 폴더 더 보기`;
+  $("moreWrap").hidden = rows.length<=RANK_SHOW;
+  $("moreBtn").textContent = S.showAll ? "상위 20개만 보기" : `나머지 ${rows.length-RANK_SHOW}개 폴더 더 보기`;
   $("rank").querySelectorAll(".rk").forEach(el=>{
     const g = +el.dataset.g||0;
-    el.onmousemove = e=>tipOn(e,`<b>${esc(el.dataset.n)}</b> · ${fmt(+el.dataset.c)}장 · ${pct(+el.dataset.c,T.total)}${g?` · 그중 이름 추정 ${fmt(g)}장`:""}`);
+    el.onmousemove = e=>tipOn(e,`<b>${esc(el.dataset.n)}</b> · ${fmt(+el.dataset.c)}장 · ${pct(+el.dataset.c,base_)}${g?` · 그중 이름 추정 ${fmt(g)}장`:""}`);
     el.onmouseleave = tipOff;
   });
 
@@ -808,12 +838,13 @@ function render(){
     body += `<div class="idxroot"><h3>${esc(r.h.name)}</h3>`;
     if(!ri){ body += `<p class="ed">아직 안 훑었어요. 다음 갱신 때 훑습니다.</p></div>`; continue; }
     const st = ri.stat;
-    if(!st){ body += `<p class="ed">예전 버전에서 만든 목록이라 자세한 정보가 없어요. 사진 ${fmt(ri.files.length)}장 · ${when(ri.builtAt)}. <b>원본 다시 훑기</b>를 하면 나옵니다.</p></div>`; continue; }
+    if(!st){ body += `<p class="ed">예전 버전에서 만든 목록이라 자세한 정보가 없어요. 사진 ${fmt(ri.files.length)}장 · ${when(ri.builtAt)}. <b>원본 전체 다시 훑기</b>를 하면 나옵니다.</p></div>`; continue; }
     const e = st.errDirs + st.errFiles; errs += e;
     const ext = Object.entries(st.otherExt).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([x,n])=>`<span class="chip">${esc(x)} ${fmt(n)}</span>`).join("");
     body +=
       `<div class="kv"><span>폴더</span><b>${fmt(st.dirs)}개</b><span>사진</span><b>${fmt(ri.files.length)}장</b>`+
       `<span>사진이 아닌 파일</span><b>${fmt(st.other)}개</b><span>훑은 때</span><b>${when(ri.builtAt)}</b></div>`+
+      (ri.lastRun?`<p class="ed" style="margin-top:8px">${ri.lastRun.quick?`빠른 확인 ${dur(ri.lastRun.took)} — 새 사진 ${fmt(ri.lastRun.added)}장 · 사라진 사진 ${fmt(ri.lastRun.removed)}장`:`전체 훑기 ${dur(ri.lastRun.took)}`}</p>`:"")+
       (ext?`<p class="ed" style="margin-top:10px">사진이 아닌 파일: ${ext}</p>`:"")+
       (e?`<p class="ed warn">크롬이 읽지 못한 폴더 ${fmt(st.errDirs)}개 · 파일 ${fmt(st.errFiles)}개 — 이 안의 사진은 집계에서 빠져요.</p><ul class="etclist">${st.samples.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`
             :`<p class="ed">읽지 못한 폴더나 파일은 없어요.</p>`)+`</div>`;
