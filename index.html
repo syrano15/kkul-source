@@ -74,6 +74,19 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18p
 .opt{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:var(--text2);margin-top:12px;cursor:pointer}
 .opt input{margin-top:3px}
 
+.roots{flex:1;min-width:0;display:grid;gap:6px}
+.rootsrow{align-items:flex-start}
+.rootsrow .lbl{padding-top:6px}
+.rt{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:6px 8px 6px 12px}
+.rt .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.rt select{font:inherit;font-size:13px;color:var(--text);background:var(--card);border:1px solid var(--line2);border-radius:8px;padding:4px 6px}
+.rt .x{border:0;background:none;color:var(--muted);font-size:13px;padding:4px 6px;border-radius:6px}
+.rt .x:hover{color:var(--text);background:color-mix(in srgb,var(--text) 8%,transparent)}
+.roots .none{color:var(--muted);padding:6px 0}
+.rtag{display:inline-block;font-size:11px;font-weight:600;color:var(--muted);border:1px solid var(--line2);border-radius:5px;padding:0 5px;margin-left:6px;vertical-align:1px;line-height:1.5}
+.idxroot{margin-top:18px}
+.idxroot:first-child{margin-top:0}
+.idxroot h3{font-size:14px;margin:0 0 8px}
 /* 진행 */
 .prog .stage{font-weight:650}
 .prog .detail{color:var(--text2);font-size:13.5px;margin-top:2px;font-variant-numeric:tabular-nums}
@@ -178,6 +191,8 @@ details summary .ss{font-weight:500;color:var(--muted);font-size:13px}
   .setup .row{flex-wrap:wrap}
   .setup .lbl{width:auto}
   .setup .val{flex-basis:100%;order:3}
+  .rt{flex-wrap:wrap}
+  .rt .nm{flex-basis:100%}
   .tile .v{font-size:24px}
 }
 </style>
@@ -202,12 +217,17 @@ details summary .ss{font-weight:500;color:var(--muted);font-size:13px}
         <div class="val empty" id="tName">아직 안 골랐어요</div>
         <button class="btn sm" id="pickT">고르기</button>
       </div>
-      <div class="row">
+      <div class="row rootsrow">
         <div class="lbl">원본 폴더</div>
-        <div class="val empty" id="oName">아직 안 골랐어요</div>
-        <button class="btn sm" id="pickO">고르기</button>
+        <div class="roots" id="rootList"></div>
       </div>
-      <p class="hint">꿀뷰 폴더는 <b>Pictures\꿀뷰</b>, 원본 폴더는 <b>D:\01.메인</b>을 고르면 됩니다. 원본 폴더 바로 아래 폴더 이름으로 집계해요.<br>
+      <div class="row" style="border-top:0;padding-top:0">
+        <div class="lbl"></div>
+        <div class="val"></div>
+        <button class="btn sm" id="addRoot">＋ 원본 폴더 추가</button>
+      </div>
+      <p class="hint">원본 폴더는 여러 개 등록할 수 있어요 (예: D:\01.메인, 다른 드라이브의 마이너·일반 폴더). 폴더마다 <b>바로 아래 폴더별로</b> 셀지, <b>폴더 전체를 하나로</b> 셀지 고를 수 있고, 바꾸면 바로 반영돼요.
+      원본을 추가하면 다음 갱신 때 <b>추가한 폴더만</b> 새로 훑습니다. 드라이브 최상위(D:\ 같은)는 크롬이 고르게 해 주지 않아요.<br>
       권한을 물으면 <b>"방문할 때마다 허용"</b>을 고르세요. 그래야 매번 다시 묻지 않습니다.</p>
       <label class="opt"><input type="checkbox" id="optAuto">
         <span>새로 들어온 사진의 원본을 못 찾으면 원본 폴더를 자동으로 다시 훑기<br><span style="color:var(--muted)">원본 쪽에 새로 넣은 폴더도 반영돼요. 대신 그날은 갱신이 5~20분 걸립니다.</span></span></label>
@@ -290,16 +310,17 @@ details summary .ss{font-weight:500;color:var(--muted);font-size:13px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION = "v1.2";
+const APP_VERSION = "v1.3";
 const $ = id => document.getElementById(id);
 $("verTop").textContent = APP_VERSION;
 $("verBot").textContent = APP_VERSION;
 
 const EXT = /\.(jpe?g|jfif|png|gif|webp|bmp|heic|heif|avif|tiff?)$/i;
-const LOGIC = 2;              // 판정 규칙 버전 — 바꾸면 추정·기타를 다시 본다
+const LOGIC = 3;              // 판정 규칙 버전 — 바꾸면 다시 판정한다
 const FP_CHUNK = 262144;      // 앞·뒤 256KB 로 지문을 뜬다
 const SLOTS = 8;              // 색을 가지는 폴더 수 (나머지는 "그 외")
 const RANK_SHOW = 20;
+const KEEP = 40;              // 사진 하나당 기억하는 원본 경로 수 (묶음이 다른 것만)
 
 /* ---------- 저장소 (IndexedDB) ---------- */
 let dbp = null;
@@ -320,31 +341,72 @@ async function put(k,v){
   const d = await db();
   return new Promise((ok,no)=>{ const t=d.transaction("kv","readwrite"); t.objectStore("kv").put(v,k); t.oncomplete=()=>ok(); t.onerror=()=>no(t.error); });
 }
+async function del(k){
+  const d = await db();
+  return new Promise((ok,no)=>{ const t=d.transaction("kv","readwrite"); t.objectStore("kv").delete(k); t.oncomplete=()=>ok(); t.onerror=()=>no(t.error); });
+}
 async function clearAll(){
   const d = await db();
   return new Promise((ok,no)=>{ const t=d.transaction("kv","readwrite"); t.objectStore("kv").clear(); t.oncomplete=()=>ok(); t.onerror=()=>no(t.error); });
 }
 
-/* ---------- 상태 ---------- */
+/* ---------- 상태 ----------
+  roots   : [{id, h, mode}]   원본 폴더들. mode "sub"=바로 아래 폴더별 / "whole"=폴더 전체를 하나로
+  index   : {gen, roots:{id:{builtAt, name, files:[[상대경로,크기,수정시각]], stat}}}
+  경로 표기: 원본 파일은 "<원본id>/<상대경로>" 로 부른다 (여러 원본을 한 목록에서 다루려고)
+  results : "꿀뷰경로|크기|수정시각" → {hits:[원본경로], npaths:[원본경로], gen, sig, lv, seen, name}
+            ok/dup/guess/etc 는 저장하지 않고 집계할 때 hits·npaths 와 지금의 세는 방식으로 계산한다
+*/
 const S = {
-  hT:null, hO:null,           // 폴더 핸들
-  index:null,                 // {gen, builtAt, root, files:[[path,size,mtime],...]}
-  bySize:null,                // Map size -> [entry]
-  fpO:{},                     // 원본 지문 캐시  "path|size|mtime" -> fp
-  results:{},                 // 꿀뷰 사진별 판정  "path|size|mtime" -> {st,tops,gen,seen,name}
-  colors:{},                  // 폴더 -> 색 칸 번호 (한 번 정하면 유지)
-  settings:{auto:true},
-  last:null,                  // {at}
+  hT:null, roots:[], index:null,
+  bySize:null, byName:null, rootMap:new Map(),
+  fpO:{}, results:{}, colors:{},
+  settings:{auto:true}, last:null,
   busy:false, abort:null, showAll:false
 };
 
-/* ---------- 파일 시스템 ---------- */
+/* ---------- 도우미 ---------- */
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
-const tick = () => new Promise(r=>setTimeout(r,0));
 function base(p){ const i=p.lastIndexOf("/"); return i<0?p:p.slice(i+1); }
-function topOf(p){ const i=p.indexOf("/"); return i<0?null:p.slice(0,i); }
 function keyOf(path,size,mtime){ return path+"|"+size+"|"+mtime; }
 function abortErr(){ const e=new Error("중단됨"); e.name="AbortError"; return e; }
+function newId(){ return "r"+Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
+function sig(){ return S.roots.map(r=>r.id).sort().join(","); }
+function rootName(id){ const r=S.rootMap.get(id); return r ? r.h.name : "(뺀 원본)"; }
+function syncRootMap(){ S.rootMap = new Map(S.roots.map(r=>[r.id,r])); }
+
+// 원본 경로 → 집계 묶음 열쇠. 원본 최상위 파일(폴더별 모드)이나 뺀 원본이면 null
+function groupOf(path){
+  const i = path.indexOf("/"), rid = path.slice(0,i), rel = path.slice(i+1);
+  const r = S.rootMap.get(rid);
+  if(!r) return null;
+  if(r.mode==="whole") return rid;
+  const j = rel.indexOf("/");
+  return j<0 ? null : rid+"/"+rel.slice(0,j);
+}
+// 묶음 열쇠 → 이름표
+function gParts(g){
+  const i = g.indexOf("/");
+  return i<0 ? {root:rootName(g), sub:null} : {root:rootName(g.slice(0,i)), sub:g.slice(i+1)};
+}
+function gText(g){ const p=gParts(g); return p.sub ? (S.roots.length>1 ? p.root+" › "+p.sub : p.sub) : p.root; }
+function gHTML(g){
+  const p=gParts(g);
+  if(!p.sub) return `${esc(p.root)}<span class="rtag">전체</span>`;
+  return esc(p.sub) + (S.roots.length>1 ? `<span class="rtag">${esc(p.root)}</span>` : "");
+}
+function uniqGroups(paths){ return [...new Set(paths.map(groupOf).filter(Boolean))]; }
+// 묶음이 다를 수 있는 경로만 남긴다 (원본id + 첫 폴더 기준)
+function thin(paths){
+  const seen = new Set(), out = [];
+  for(const p of paths){
+    const i=p.indexOf("/"), rid=p.slice(0,i), rel=p.slice(i+1), j=rel.indexOf("/");
+    const k = rid+"/"+(j<0?"":rel.slice(0,j));
+    if(seen.has(k)) continue; seen.add(k); out.push(p);
+    if(out.length>=KEEP) break;
+  }
+  return out;
+}
 
 async function perm(h, ask){
   if(!h) return false;
@@ -396,11 +458,12 @@ async function listDir(root, {signal, onProgress, keep}){
   return {files:out, handles, st};
 }
 
-// 원본 폴더 안의 파일을 경로로 찾아 연다 (폴더 핸들은 캐시)
+// 원본 파일을 "<원본id>/<상대경로>" 로 찾아 연다 (폴더 핸들은 캐시)
 const dirCache = new Map();
 async function openOrig(path){
-  const segs = path.split("/"), name = segs.pop();
-  let d = S.hO, acc = "";
+  const segs = path.split("/"), rid = segs.shift(), name = segs.pop();
+  const r = S.rootMap.get(rid); if(!r){ const e=new Error("원본 없음"); e.name="NotFoundError"; throw e; }
+  let d = r.h, acc = rid+"/";
   for(const s of segs){
     acc += s+"/";
     let c = dirCache.get(acc);
@@ -426,45 +489,52 @@ async function fingerprint(file){
   return s;
 }
 
-function buildBySize(){
+// 모든 원본의 목록을 합쳐 크기·이름으로 찾을 수 있게 한다
+function buildLookup(){
   const m = new Map(), nm = new Map();
-  for(const e of S.index.files){
-    const a=m.get(e[1]); if(a) a.push(e); else m.set(e[1],[e]);
-    const n=base(e[0]).toLowerCase(), b=nm.get(n); if(b) b.push(e); else nm.set(n,[e]);
+  if(S.index) for(const [rid,ri] of Object.entries(S.index.roots)){
+    if(!S.rootMap.has(rid)) continue;
+    for(const f of ri.files){
+      const e = [rid+"/"+f[0], f[1], f[2]];
+      const a=m.get(e[1]); if(a) a.push(e); else m.set(e[1],[e]);
+      const n=base(f[0]).toLowerCase(), b=nm.get(n); if(b) b.push(e); else nm.set(n,[e]);
+    }
   }
   S.bySize = m; S.byName = nm;
 }
+function indexCount(){ return S.index ? Object.entries(S.index.roots).filter(([id])=>S.rootMap.has(id)).reduce((a,[,r])=>a+r.files.length,0) : 0; }
+function oldestBuilt(){ const v=S.index?Object.entries(S.index.roots).filter(([id])=>S.rootMap.has(id)).map(([,r])=>r.builtAt):[]; return v.length?Math.min(...v):0; }
 
-// 꿀뷰 사진 하나의 출처를 정한다
-//  ok    : 내용이 같은 원본이 한 폴더에만 있다
-//  dup   : 내용이 같은 원본이 여러 폴더에 있다
-//  guess : 내용이 같은 원본은 없지만, 같은 파일명이 한 폴더에만 있다 (회전·보정·다시 저장된 사진)
-//  etc   : 그 밖. why = none(같은 이름도 없음) / many(같은 이름이 여러 폴더) / root(원본 최상위에만 있음)
+// 꿀뷰 사진 하나에 대해: 내용이 같은 원본(hits)과 이름이 같은 원본(npaths)을 찾는다
 async function resolve(t, handle){
   const cands = S.bySize.get(t.size) || [];
-  const hit = [];
+  const hits = [];
   let tfp = null;
   for(const c of cands){
-    if(base(c[0])===t.name && c[2]===t.mtime){ hit.push(c[0]); continue; }   // 이름·크기·수정시각이 모두 같으면 확정
+    if(base(c[0])===t.name && c[2]===t.mtime){ hits.push(c[0]); continue; }   // 이름·크기·수정시각이 모두 같으면 확정
     try{
       if(tfp===null) tfp = await fingerprint(await handle.getFile());
       const k = keyOf(c[0],c[1],c[2]);
       let ofp = S.fpO[k];
       if(!ofp){ ofp = await fingerprint(await openOrig(c[0])); S.fpO[k] = ofp; }
-      if(ofp===tfp) hit.push(c[0]);
+      if(ofp===tfp) hits.push(c[0]);
     }catch(e){ if(e.name==="AbortError") throw e; }
   }
-  const tops = uniqTops(hit);
-  if(tops.length===1) return {st:"ok", tops};
-  if(tops.length>1) return {st:"dup", tops};
-  // 내용으로 못 찾았으면 파일명으로 추정
-  const byN = (S.byName.get(t.name.toLowerCase())||[]).map(e=>e[0]);
-  const ntops = uniqTops(byN);
-  if(ntops.length===1) return {st:"guess", tops:ntops};
-  if(ntops.length>1) return {st:"etc", tops:ntops, why:"many"};
-  return {st:"etc", tops:[], why:(hit.length||byN.length)?"root":"none"};
+  const npaths = hits.length ? [] : (S.byName.get(t.name.toLowerCase())||[]).map(e=>e[0]);
+  return {hits:thin(hits), npaths:thin(npaths)};
 }
-function uniqTops(paths){ return [...new Set(paths.map(topOf).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko")); }
+
+// 저장된 hits·npaths 와 지금의 세는 방식으로 판정
+//  ok 내용 일치 한 묶음 / dup 여러 묶음 / guess 이름이 한 묶음에만 / etc: none·many·root
+function classify(r){
+  const g = uniqGroups(r.hits||[]);
+  if(g.length===1) return {st:"ok", g};
+  if(g.length>1) return {st:"dup", g};
+  const n = uniqGroups(r.npaths||[]);
+  if(n.length===1) return {st:"guess", g:n};
+  if(n.length>1) return {st:"etc", g:n, why:"many"};
+  return {st:"etc", g:[], why:(r.hits&&r.hits.length)||(r.npaths&&r.npaths.length)?"root":"none"};
+}
 
 /* ---------- 진행 표시 ---------- */
 function prog(stage, detail, frac){
@@ -486,19 +556,25 @@ function when(t){
 function dur(ms){ const s=Math.round(ms/1000); return s<60?`${s}초`:`${Math.floor(s/60)}분 ${s%60}초`; }
 
 /* ---------- 원본 목록 만들기 ---------- */
-async function buildIndex(signal){
-  const t0 = performance.now();
-  prog("원본 목록 만드는 중", "폴더를 훑고 있어요", null);
-  const r = await listDir(S.hO, {signal, onProgress:(d,n)=>prog("원본 목록 만드는 중",
-    `폴더 ${fmt(d)}개 · 사진 ${fmt(n)}장 · ${dur(performance.now()-t0)}`, null)});
-  const gen = ((S.index && S.index.gen)||0) + 1;
-  S.index = {gen, builtAt:Date.now(), root:S.hO.name, files:r.files, stat:r.st};
+// ids 에 든 원본만 새로 훑는다 (추가한 원본만, 또는 전부)
+async function buildIndex(ids, signal){
+  if(!S.index) S.index = {gen:0, roots:{}};
+  let k = 0;
+  for(const id of ids){
+    const r = S.rootMap.get(id); if(!r) continue;
+    k++;
+    const t0 = performance.now(), label = `원본 목록 만드는 중${ids.length>1?` (${k}/${ids.length})`:""} · ${r.h.name}`;
+    prog(label, "폴더를 훑고 있어요", null);
+    const res = await listDir(r.h, {signal, onProgress:(d,n)=>prog(label, `폴더 ${fmt(d)}개 · 사진 ${fmt(n)}장 · ${dur(performance.now()-t0)}`, null)});
+    S.index.roots[id] = {builtAt:Date.now(), name:r.h.name, files:res.files, stat:res.st};
+    // 이 원본에서 사라진 파일의 지문은 버린다
+    const alive = new Set(res.files.map(f=>keyOf(id+"/"+f[0],f[1],f[2])));
+    for(const key of Object.keys(S.fpO)) if(key.startsWith(id+"/") && !alive.has(key)) delete S.fpO[key];
+    S.index.gen++;
+    await put("index", S.index);   // 원본 하나 끝날 때마다 저장 — 중간에 멈춰도 다시 안 훑는다
+  }
   dirCache.clear();
-  buildBySize();
-  // 목록에서 사라진 원본의 지문은 버린다
-  const alive = new Set(r.files.map(e=>keyOf(e[0],e[1],e[2])));
-  for(const k of Object.keys(S.fpO)) if(!alive.has(k)) delete S.fpO[k];
-  await put("index", S.index);
+  buildLookup();
   await put("fpO", S.fpO);
 }
 
@@ -506,13 +582,13 @@ async function buildIndex(signal){
 async function refresh(opt={}){
   if(S.busy) return;
   msg("");
-  if(!S.hT || !S.hO){ openSetup(); msg("먼저 <b>꿀뷰 폴더</b>와 <b>원본 폴더</b>를 골라 주세요."); return; }
+  if(!S.hT || !S.roots.length){ openSetup(); msg("먼저 <b>꿀뷰 폴더</b>와 <b>원본 폴더</b>를 골라 주세요."); return; }
   // 권한은 클릭 직후에 묻는다
-  const okT = await perm(S.hT, true);
-  const okO = okT && await perm(S.hO, true);
-  if(!okT || !okO){
-    msg("폴더 읽기 권한이 필요해요. <b>갱신</b>을 한 번 더 누르고 권한 창에서 <b>\"방문할 때마다 허용\"</b>을 골라 주세요.");
-    return;
+  for(const h of [S.hT, ...S.roots.map(r=>r.h)]){
+    if(!(await perm(h, true))){
+      msg(`<b>${esc(h.name)}</b> 폴더 읽기 권한이 필요해요. <b>갱신</b>을 한 번 더 누르고 권한 창에서 <b>"방문할 때마다 허용"</b>을 골라 주세요.`);
+      return;
+    }
   }
   S.busy = true; S.abort = new AbortController();
   const signal = S.abort.signal;
@@ -523,33 +599,38 @@ async function refresh(opt={}){
     const seenAt = Date.now();
     prog("꿀뷰 폴더 읽는 중", "", null);
     const tr = await listDir(S.hT, {signal, keep:true, onProgress:(d,n)=>prog("꿀뷰 폴더 읽는 중", `사진 ${fmt(n)}장`, null)});
-    if(!S.index || opt.rescan) await buildIndex(signal);
-    else if(!S.bySize) buildBySize();
+    const all = S.roots.map(r=>r.id);
+    const missing = all.filter(id=>!(S.index && S.index.roots[id]));
+    if(opt.rescan) await buildIndex(all, signal);
+    else if(missing.length) await buildIndex(missing, signal);
+    else if(!S.bySize) buildLookup();
 
-    let rescanned = !!opt.rescan || false;
+    let rescanned = !!opt.rescan;
+    const sg = sig();
     for(let pass=0; pass<2; pass++){
       const next = {}, todo = [];
       partial = next;
       for(const [p,size,mtime] of tr.files){
         const k = keyOf(p,size,mtime), c = S.results[k];
-        // 내용으로 확정된 것(ok·dup)은 그대로 쓴다. 추정·기타는 원본 목록이나 판정 규칙이 바뀌면 다시 본다.
-        if(c && (c.st==="ok" || c.st==="dup" || (c.gen===S.index.gen && c.lv===LOGIC))) next[k] = c;
+        // 내용이 일치한 것은 그대로 쓴다. 못 찾은 것은 원본 목록이 바뀌면 다시 본다.
+        if(c && c.lv===LOGIC && c.sig===sg && (c.hits.length || c.gen===S.index.gen)) next[k] = c;
         else todo.push([k,p,size,mtime,c]);
       }
       for(let i=0;i<todo.length;i++){
         if(signal.aborted) throw abortErr();
         const [k,p,size,mtime,c] = todo[i];
-        if(i%4===0) prog("출처 찾는 중", `새 사진 ${fmt(i)} / ${fmt(todo.length)}`, todo.length?i/todo.length:1);
+        if(i%4===0) prog("출처 찾는 중", `사진 ${fmt(i)} / ${fmt(todo.length)}`, todo.length?i/todo.length:1);
         const r = await resolve({name:base(p), size, mtime}, tr.handles.get(p));
-        next[k] = {st:r.st, tops:r.tops, why:r.why, gen:S.index.gen, lv:LOGIC, seen:c?c.seen:seenAt, name:base(p)};
+        next[k] = {hits:r.hits, npaths:r.npaths, gen:S.index.gen, sig:sg, lv:LOGIC, seen:c?c.seen:seenAt, name:base(p)};
         if(i%200===199){ await put("fpO", S.fpO); }
       }
       S.results = next; partial = null;
       await put("results", S.results);
       await put("fpO", S.fpO);
-      // 원본 목록을 만든 뒤에 들어온 사진인데 출처를 못 찾았다 → 원본 쪽에 새 폴더가 생겼을 수 있다
-      const fresh = Object.values(S.results).filter(r=>r.st==="etc" && r.seen>S.index.builtAt).length;
-      if(pass===0 && fresh && S.settings.auto && !rescanned){ rescanned = true; await buildIndex(signal); continue; }
+      // 원본 목록을 만든 뒤에 들어온 사진인데 원본을 못 찾았다 → 원본 쪽에 새 폴더가 생겼을 수 있다
+      const built = oldestBuilt();
+      const fresh = Object.values(S.results).filter(r=>!r.hits.length && !r.npaths.length && r.seen>built).length;
+      if(pass===0 && fresh && S.settings.auto && !rescanned){ rescanned = true; await buildIndex(all, signal); continue; }
       if(fresh && !S.settings.auto){
         msg(`<div class="grow">새로 들어온 사진 중 <b>${fmt(fresh)}장</b>의 원본을 못 찾았어요. 원본 폴더에 새로 넣은 사진이라면 원본을 다시 훑어야 잡힙니다.</div><button class="btn sm" id="msgRescan">원본 다시 훑기</button>`);
         $("msgRescan").onclick = ()=>refresh({rescan:true});
@@ -561,13 +642,11 @@ async function refresh(opt={}){
     render();
   }catch(e){
     if(e.name==="AbortError"){
-      // 여기까지 판정한 것은 남긴다
       if(partial){ S.results = Object.assign({}, S.results, partial); try{ await put("results",S.results); }catch(_){} render(); }
-      msg("중단했어요. 여기까지 확인한 사진은 기억해 두었으니, 다음 갱신은 이어서 합니다.");
+      msg("중단했어요. 여기까지 확인한 사진과 다 훑은 원본 폴더는 기억해 두었으니, 다음 갱신은 이어서 합니다.");
     }
     else if(e.name==="NotFoundError") msg("폴더를 찾을 수 없어요. 옮겨졌거나 이름이 바뀌었다면 <b>폴더 설정</b>에서 다시 골라 주세요.");
     else { console.error(e); msg("오류가 났어요: "+esc(e.message||String(e))); }
-    // 중단돼도 그때까지 뜬 지문은 남긴다
     try{ await put("fpO", S.fpO); }catch(_){}
   }finally{
     S.busy = false; S.abort = null;
@@ -579,30 +658,33 @@ async function refresh(opt={}){
 /* ---------- 화면 ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function pct(n,t){ if(!t) return "0%"; const v=n/t*100; return (v>=10||v===0?Math.round(v):v.toFixed(1))+"%"; }
+const byName = (a,b)=>a.name.localeCompare(b.name,"ko");
+const gSort = (a,b)=>gText(a).localeCompare(gText(b),"ko");
 
 function tally(){
   const by = new Map(), gby = new Map(); let ok=0, guess=0, dup=0, etc=0, total=0;
   const dups = [], etcs = [], guesses = [];
   for(const r of Object.values(S.results)){
     total++;
-    if(r.st==="ok"){ ok++; by.set(r.tops[0],(by.get(r.tops[0])||0)+1); }
-    else if(r.st==="guess"){ guess++; guesses.push(r); by.set(r.tops[0],(by.get(r.tops[0])||0)+1); gby.set(r.tops[0],(gby.get(r.tops[0])||0)+1); }
-    else if(r.st==="dup"){ dup++; dups.push(r); }
-    else { etc++; etcs.push(r); }
+    const c = classify(r), item = {name:r.name, g:c.g.sort(gSort), why:c.why};
+    if(c.st==="ok"){ ok++; by.set(c.g[0],(by.get(c.g[0])||0)+1); }
+    else if(c.st==="guess"){ guess++; guesses.push(item); by.set(c.g[0],(by.get(c.g[0])||0)+1); gby.set(c.g[0],(gby.get(c.g[0])||0)+1); }
+    else if(c.st==="dup"){ dup++; dups.push(item); }
+    else { etc++; etcs.push(item); }
   }
-  // rows: [폴더, 장수(추정 포함), 그중 추정]
-  const rows = [...by.entries()].map(([n,c])=>[n,c,gby.get(n)||0]).sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],"ko"));
+  // rows: [묶음, 장수(추정 포함), 그중 추정]
+  const rows = [...by.entries()].map(([n,c])=>[n,c,gby.get(n)||0]).sort((a,b)=>b[1]-a[1] || gSort(a[0],b[0]));
   return {rows, ok, guess, dup, etc, total, dups, etcs, guesses};
 }
 
-// 색은 폴더에 붙는다. 순위가 바뀌어도 같은 폴더는 같은 색.
+// 색은 묶음에 붙는다. 순위가 바뀌어도 같은 폴더는 같은 색.
 function assignColors(rows){
   const top = rows.slice(0,SLOTS).map(r=>r[0]);
   const used = new Set(top.map(n=>S.colors[n]).filter(v=>v!=null));
   let changed = false;
   for(const n of top){
     const c = S.colors[n];
-    if(c==null || [...top].filter(x=>S.colors[x]===c).length>1){
+    if(c==null || top.filter(x=>S.colors[x]===c).length>1){
       if(c!=null) used.delete(c);
       for(let s=1;s<=SLOTS;s++) if(!used.has(s)){ S.colors[n]=s; used.add(s); changed=true; break; }
     }
@@ -615,13 +697,14 @@ function assignColors(rows){
 const tip = $("tip");
 function tipOn(e,html){ tip.innerHTML=html; tip.classList.add("on"); tip.style.left=e.clientX+"px"; tip.style.top=e.clientY+"px"; }
 function tipOff(){ tip.classList.remove("on"); }
+const chips = (g,max=6)=> g.slice(0,max).map(x=>`<span class="chip">${esc(gText(x))}</span>`).join("") + (g.length>max?`<span class="chip">외 ${g.length-max}곳</span>`:"");
 
 function render(){
   const hasData = Object.keys(S.results).length>0 || S.last;
   $("welcome").hidden = !!hasData;
   $("view").hidden = !hasData;
   if(!hasData){
-    const ready = S.hT && S.hO;
+    const ready = S.hT && S.roots.length;
     $("wTitle").textContent = ready ? "준비됐어요" : "처음 오셨네요";
     $("welcomeSetup").hidden = !!ready;
     return;
@@ -639,11 +722,11 @@ function render(){
   ].map(([k,v,p,c])=>`<div class="tile"><div class="k">${c?`<span class="dot" style="background:${c}"></span>`:""}${k}</div><div class="v">${v}${p?`<small>${p}</small>`:""}</div></div>`).join("");
 
   // 도넛: 폴더 상위 8개 + 그 외 폴더 + 중복 + 기타 = 꿀뷰 전체
-  const segs = T.rows.slice(0,SLOTS).map(([n,c])=>({n,c,col:colors.get(n)}));
+  const segs = T.rows.slice(0,SLOTS).map(([n,c])=>({t:gText(n), h:gHTML(n), c, col:colors.get(n)}));
   const rest = T.rows.slice(SLOTS);
-  if(rest.length) segs.push({n:`그 외 폴더 ${rest.length}개`, c:rest.reduce((a,r)=>a+r[1],0), col:"var(--other)"});
-  if(T.dup) segs.push({n:"중복", c:T.dup, col:"var(--dup)", sp:true});
-  if(T.etc) segs.push({n:"기타", c:T.etc, col:"var(--etc-bg)", stroke:"url(#etcHatch)", sp:true});
+  if(rest.length){ const t=`그 외 폴더 ${rest.length}개`; segs.push({t, h:esc(t), c:rest.reduce((a,r)=>a+r[1],0), col:"var(--other)"}); }
+  if(T.dup) segs.push({t:"중복", h:"중복", c:T.dup, col:"var(--dup)", sp:true});
+  if(T.etc) segs.push({t:"기타", h:"기타", c:T.etc, col:"var(--etc-bg)", stroke:"url(#etcHatch)", sp:true});
   const sum = T.total;
   $("donutSub").textContent = `전체 ${fmt(T.total)}장 기준`;
   const R=90, C=2*Math.PI*R, GAP = segs.length>1 ? 2.2 : 0;
@@ -658,7 +741,7 @@ function render(){
   let firstSp = true;
   $("legend").innerHTML = segs.map((s,i)=>{
     const cls = s.sp && firstSp && i>0 ? " sep" : ""; if(s.sp) firstSp=false;
-    return `<div class="lg${cls}" data-i="${i}"><span class="sw" style="background:${s.col}"></span><span class="nm" title="${esc(s.n)}">${esc(s.n)}</span><span class="c">${fmt(s.c)}</span><span class="p">${pct(s.c,sum)}</span></div>`;
+    return `<div class="lg${cls}" data-i="${i}"><span class="sw" style="background:${s.col}"></span><span class="nm" title="${esc(s.t)}">${s.h}</span><span class="c">${fmt(s.c)}</span><span class="p">${pct(s.c,sum)}</span></div>`;
   }).join("");
   const hot = (i,on)=>{
     $("donut").querySelectorAll(".seg").forEach(el=>el.classList.toggle("hot", on && el.dataset.i==i));
@@ -666,7 +749,7 @@ function render(){
   };
   $("donut").querySelectorAll(".seg").forEach(el=>{
     const s = segs[el.dataset.i];
-    el.onmousemove = e=>{ hot(el.dataset.i,true); tipOn(e,`<b>${esc(s.n)}</b> · ${fmt(s.c)}장 · ${pct(s.c,sum)}`); };
+    el.onmousemove = e=>{ hot(el.dataset.i,true); tipOn(e,`<b>${esc(s.t)}</b> · ${fmt(s.c)}장 · ${pct(s.c,sum)}`); };
     el.onmouseleave = ()=>{ hot(0,false); tipOff(); };
   });
   $("legend").querySelectorAll(".lg").forEach(el=>{
@@ -678,11 +761,11 @@ function render(){
   const max = Math.max(1, ...T.rows.map(r=>r[1]), T.dup, T.etc);
   const show = S.showAll ? T.rows : T.rows.slice(0,RANK_SHOW);
   $("rankSub").textContent = `폴더 ${fmt(T.rows.length)}개`;
-  let html = show.map(([n,c,g],i)=>rkRow(i+1,n,c,colors.get(n)||"var(--other)",max,T.total,"",g)).join("");
+  let html = show.map(([n,c,g],i)=>rkRow(i+1,gText(n),gHTML(n),c,colors.get(n)||"var(--other)",max,T.total,"",g)).join("");
   const sp = [];
   if(T.dup) sp.push(["중복", T.dup, "var(--dup)"]);
   if(T.etc) sp.push(["기타", T.etc, "var(--etc-bg)"]);
-  html += sp.map(([n,c,col],i)=>rkRow("",n,c,col,max,T.total,i===0&&show.length?"sep special":"special")).join("");
+  html += sp.map(([n,c,col],i)=>rkRow("",n,n,c,col,max,T.total,i===0&&show.length?"sep special":"special")).join("");
   $("rank").innerHTML = html || `<div class="empty" style="padding:20px">표시할 사진이 없어요</div>`;
   $("moreWrap").hidden = T.rows.length<=RANK_SHOW;
   $("moreBtn").textContent = S.showAll ? "상위 20개만 보기" : `나머지 ${T.rows.length-RANK_SHOW}개 폴더 더 보기`;
@@ -695,58 +778,58 @@ function render(){
   // 중복
   $("dupCard").hidden = !T.dup;
   $("dupSub").textContent = `${fmt(T.dup)}장`;
-  $("dupBody").innerHTML = T.dups.sort((a,b)=>a.name.localeCompare(b.name,"ko"))
-    .map(r=>`<tr><td class="fn">${esc(r.name)}</td><td>${r.tops.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</td></tr>`).join("");
+  $("dupBody").innerHTML = capRows(T.dups.sort(byName), r=>`<tr><td class="fn">${esc(r.name)}</td><td>${chips(r.g)}</td></tr>`, 2);
 
   // 이름으로 추정
   $("rkKey").hidden = !T.guess;
   $("guessCard").hidden = !T.guess;
   $("guessSub").textContent = `${fmt(T.guess)}장 — 내용은 다르지만 같은 파일명이 한 폴더에만 있음 (회전·보정·다시 저장된 사진)`;
-  $("guessBody").innerHTML = capRows(T.guesses.sort((a,b)=>a.name.localeCompare(b.name,"ko")),
-    r=>`<tr><td class="fn">${esc(r.name)}</td><td><span class="chip">${esc(r.tops[0])}</span></td></tr>`, 2);
+  $("guessBody").innerHTML = capRows(T.guesses.sort(byName), r=>`<tr><td class="fn">${esc(r.name)}</td><td>${chips(r.g)}</td></tr>`, 2);
 
   // 기타 — 이유별로 나눠 보여 준다
   $("etcCard").hidden = !T.etc;
   $("etcSub").textContent = `${fmt(T.etc)}장`;
   const byWhy = {none:[], many:[], root:[]};
   for(const r of T.etcs) (byWhy[r.why]||byWhy.none).push(r);
-  for(const k in byWhy) byWhy[k].sort((a,b)=>a.name.localeCompare(b.name,"ko"));
+  for(const k in byWhy) byWhy[k].sort(byName);
   const grp = (title, desc, list, row)=> list.length ? `<h3 class="eh">${title} <span>${fmt(list.length)}장</span></h3><p class="ed">${desc}</p>`+row(list) : "";
   $("etcBody").innerHTML =
-    grp("원본에 같은 파일명도 없음", "원본 폴더 밖(예: D:\\qr)에서 왔거나, 원본에서 지웠거나 이름을 바꾼 사진이에요.", byWhy.none,
+    grp("원본에 같은 파일명도 없음", "등록한 원본 폴더 밖에서 왔거나, 원본에서 지웠거나 이름을 바꾼 사진이에요.", byWhy.none,
       l=>`<ul class="etclist">${capList(l)}</ul>`) +
     grp("같은 파일명이 여러 폴더에 있음", "내용이 일치하는 원본은 없고, 이름만으로는 어느 폴더인지 정할 수 없어요.", byWhy.many,
-      l=>`<table><tbody>${capRows(l, r=>`<tr><td class="fn">${esc(r.name)}</td><td>${r.tops.slice(0,6).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}${r.tops.length>6?`<span class="chip">외 ${r.tops.length-6}곳</span>`:""}</td></tr>`, 2)}</tbody></table>`) +
-    grp("원본 폴더 최상위에만 있음", "하위 폴더가 아닌 원본 폴더 바로 아래에 있는 사진이에요.", byWhy.root,
+      l=>`<table><tbody>${capRows(l, r=>`<tr><td class="fn">${esc(r.name)}</td><td>${chips(r.g)}</td></tr>`, 2)}</tbody></table>`) +
+    grp("원본 폴더 최상위에만 있음", "하위 폴더가 아닌 원본 폴더 바로 아래에 있는 사진이에요. 그 원본을 '폴더 전체를 하나로'로 바꾸면 집계돼요.", byWhy.root,
       l=>`<ul class="etclist">${capList(l)}</ul>`);
 
-  // 원본 목록 정보
-  const st = S.index && S.index.stat;
-  const errs = st ? st.errDirs + st.errFiles : 0;
-  $("idxCard").hidden = !S.index;
-  if(S.index){
-    if(!st){
-      $("idxBody").innerHTML = `<p class="ed">v1.0 에서 만든 원본 목록이라 자세한 정보가 없어요. 폴더 설정의 <b>원본 다시 훑기</b>를 한 번 하면 나옵니다.</p>`;
-    }else{
-      const ext = Object.entries(st.otherExt).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([x,n])=>`<span class="chip">${esc(x)} ${fmt(n)}</span>`).join("");
-      $("idxBody").innerHTML =
-        `<div class="kv"><span>폴더</span><b>${fmt(st.dirs)}개</b><span>사진</span><b>${fmt(S.index.files.length)}장</b>`+
-        `<span>사진이 아닌 파일</span><b>${fmt(st.other)}개</b><span>합계</span><b>${fmt(S.index.files.length+st.other+st.errFiles)}개</b></div>`+
-        (ext?`<p class="ed" style="margin-top:10px">사진이 아닌 파일: ${ext}</p>`:"")+
-        (errs?`<p class="ed warn">크롬이 읽지 못한 폴더 ${fmt(st.errDirs)}개 · 파일 ${fmt(st.errFiles)}개 — 이 안의 사진은 집계에서 빠져요.</p><ul class="etclist">${st.samples.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`
-              :`<p class="ed">읽지 못한 폴더나 파일은 없어요.</p>`);
-    }
-    $("idxSub").textContent = errs ? `읽기 실패 ${fmt(errs)}건` : "";
+  // 원본 목록 정보 (원본마다)
+  let errs = 0, body = "";
+  for(const r of S.roots){
+    const ri = S.index && S.index.roots[r.id];
+    body += `<div class="idxroot"><h3>${esc(r.h.name)}</h3>`;
+    if(!ri){ body += `<p class="ed">아직 안 훑었어요. 다음 갱신 때 훑습니다.</p></div>`; continue; }
+    const st = ri.stat;
+    if(!st){ body += `<p class="ed">예전 버전에서 만든 목록이라 자세한 정보가 없어요. 사진 ${fmt(ri.files.length)}장 · ${when(ri.builtAt)}. <b>원본 다시 훑기</b>를 하면 나옵니다.</p></div>`; continue; }
+    const e = st.errDirs + st.errFiles; errs += e;
+    const ext = Object.entries(st.otherExt).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([x,n])=>`<span class="chip">${esc(x)} ${fmt(n)}</span>`).join("");
+    body +=
+      `<div class="kv"><span>폴더</span><b>${fmt(st.dirs)}개</b><span>사진</span><b>${fmt(ri.files.length)}장</b>`+
+      `<span>사진이 아닌 파일</span><b>${fmt(st.other)}개</b><span>훑은 때</span><b>${when(ri.builtAt)}</b></div>`+
+      (ext?`<p class="ed" style="margin-top:10px">사진이 아닌 파일: ${ext}</p>`:"")+
+      (e?`<p class="ed warn">크롬이 읽지 못한 폴더 ${fmt(st.errDirs)}개 · 파일 ${fmt(st.errFiles)}개 — 이 안의 사진은 집계에서 빠져요.</p><ul class="etclist">${st.samples.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`
+            :`<p class="ed">읽지 못한 폴더나 파일은 없어요.</p>`)+`</div>`;
   }
+  $("idxCard").hidden = !S.roots.length;
+  $("idxBody").innerHTML = body;
+  $("idxSub").textContent = `원본 ${S.roots.length}곳` + (errs ? ` · 읽기 실패 ${fmt(errs)}건` : "");
 
   $("mLast").textContent = S.last ? `마지막 갱신 ${when(S.last.at)}${S.last.took?` (${dur(S.last.took)})`:""}` : "";
-  $("mIndex").textContent = S.index ? `원본 목록 ${when(S.index.builtAt)} · 사진 ${fmt(S.index.files.length)}장` : "";
+  $("mIndex").textContent = S.index ? `원본 ${S.roots.length}곳 · 사진 ${fmt(indexCount())}장` : "";
 }
 function capList(l, n=1000){ return l.slice(0,n).map(r=>`<li>${esc(r.name)}</li>`).join("") + (l.length>n?`<li>… 외 ${fmt(l.length-n)}장</li>`:""); }
 function capRows(l, row, cols, n=1000){ return l.slice(0,n).map(row).join("") + (l.length>n?`<tr><td colspan="${cols}">… 외 ${fmt(l.length-n)}장</td></tr>`:""); }
-function rkRow(no,n,c,col,max,total,cls="",g=0){
+function rkRow(no,text,html,c,col,max,total,cls="",g=0){
   const sure = c-g;
-  return `<div class="rk ${cls}" data-n="${esc(n)}" data-c="${c}" data-g="${g}"><span class="no">${no}</span><span class="nm" title="${esc(n)}">${esc(n)}</span>`+
+  return `<div class="rk ${cls}" data-n="${esc(text)}" data-c="${c}" data-g="${g}"><span class="no">${no}</span><span class="nm" title="${esc(text)}">${html}</span>`+
     `<span class="track"><span class="fill" style="width:${(c/max*100).toFixed(2)}%">`+
     (sure?`<i style="flex:${sure};background:${col}"></i>`:"")+(g?`<i class="g" style="flex:${g};background:${col}"></i>`:"")+`</span></span>`+
     `<span class="c">${fmt(c)}</span><span class="p">${pct(c,total)}</span></div>`;
@@ -754,33 +837,73 @@ function rkRow(no,n,c,col,max,total,cls="",g=0){
 
 /* ---------- 설정 ---------- */
 function paintSetup(){
-  const set = (id,h)=>{ const e=$(id); e.textContent = h? h.name : "아직 안 골랐어요"; e.classList.toggle("empty",!h); };
-  set("tName",S.hT); set("oName",S.hO);
+  const t=$("tName"); t.textContent = S.hT ? S.hT.name : "아직 안 골랐어요"; t.classList.toggle("empty",!S.hT);
+  $("rootList").innerHTML = S.roots.length ? S.roots.map(r=>
+    `<div class="rt" data-id="${r.id}"><span class="nm" title="${esc(r.h.name)}">${esc(r.h.name)}</span>`+
+    `<select aria-label="세는 방식"><option value="sub"${r.mode!=="whole"?" selected":""}>바로 아래 폴더별로</option><option value="whole"${r.mode==="whole"?" selected":""}>폴더 전체를 하나로</option></select>`+
+    `<button class="x" title="이 원본 빼기">빼기</button></div>`).join("")
+    : `<div class="none">아직 안 골랐어요</div>`;
+  $("rootList").querySelectorAll(".rt").forEach(el=>{
+    const id = el.dataset.id;
+    el.querySelector("select").onchange = e=>setMode(id, e.target.value);
+    el.querySelector(".x").onclick = ()=>removeRoot(id);
+  });
   $("optAuto").checked = !!S.settings.auto;
 }
 function openSetup(){ paintSetup(); $("setup").hidden=false; }
-async function pick(which){
+async function saveRoots(){ syncRootMap(); await put("roots", S.roots); }
+
+async function setMode(id, mode){
+  const r = S.rootMap.get(id); if(!r) return;
+  r.mode = mode; await saveRoots(); render();       // 판정은 집계 때 하므로 바로 반영된다
+}
+async function removeRoot(id){
+  const r = S.rootMap.get(id); if(!r || S.busy) return;
+  if(!confirm(`원본 폴더 "${r.h.name}"를 뺄까요? 사진 파일은 건드리지 않아요.`)) return;
+  S.roots = S.roots.filter(x=>x.id!==id); await saveRoots();
+  if(S.index){ delete S.index.roots[id]; S.index.gen++; await put("index",S.index); }
+  for(const k of Object.keys(S.fpO)) if(k.startsWith(id+"/")) delete S.fpO[k];
+  await put("fpO",S.fpO);
+  buildLookup(); paintSetup(); render();
+  msg("원본을 뺐어요. <b>갱신</b>을 누르면 남은 원본 기준으로 다시 집계합니다 (원본은 다시 안 훑어요).");
+}
+// 새 폴더가 이미 등록한 폴더와 같거나, 안에 들어 있거나, 감싸고 있으면 안 된다
+async function overlap(h, other){
+  if(await h.isSameEntry(other)) return "same";
+  try{ if(await other.resolve(h)) return "inside"; }catch(e){}
+  try{ if(await h.resolve(other)) return "outside"; }catch(e){}
+  return null;
+}
+async function pickTarget(){
   let h;
-  try{ h = await window.showDirectoryPicker({id: which==="t"?"kkulT":"kkulO", mode:"read"}); }
+  try{ h = await window.showDirectoryPicker({id:"kkulT", mode:"read"}); }
   catch(e){ if(e.name!=="AbortError") msg("폴더를 열 수 없어요: "+esc(e.message)); return; }
-  const other = which==="t" ? S.hO : S.hT;
-  if(other && await h.isSameEntry(other)){ msg("꿀뷰 폴더와 원본 폴더가 같아요. 서로 다른 폴더를 골라 주세요."); return; }
-  if(which==="t"){
-    if(S.hT && !(await h.isSameEntry(S.hT))){ S.results={}; await put("results",S.results); }
-    S.hT = h; await put("hT",h);
-  }else{
-    if(S.hO && !(await h.isSameEntry(S.hO))){ S.index=null; S.bySize=null; S.fpO={}; S.results={}; dirCache.clear();
-      await put("index",null); await put("fpO",{}); await put("results",{}); }
-    S.hO = h; await put("hO",h);
-  }
+  for(const r of S.roots) if(await overlap(h, r.h)){ msg(`꿀뷰 폴더가 원본 폴더 <b>${esc(r.h.name)}</b>와 겹쳐요. 서로 다른 폴더를 골라 주세요.`); return; }
+  if(S.hT && !(await h.isSameEntry(S.hT))){ S.results={}; await put("results",S.results); }
+  S.hT = h; await put("hT",h);
   msg(""); paintSetup(); render();
+}
+async function addRoot(){
+  let h;
+  try{ h = await window.showDirectoryPicker({id:"kkulO", mode:"read"}); }
+  catch(e){ if(e.name!=="AbortError") msg("폴더를 열 수 없어요: "+esc(e.message)); return; }
+  if(S.hT && await overlap(h, S.hT)){ msg("원본 폴더가 꿀뷰 폴더와 겹쳐요. 서로 다른 폴더를 골라 주세요."); return; }
+  for(const r of S.roots){
+    const o = await overlap(h, r.h);
+    if(o==="same"){ msg(`<b>${esc(h.name)}</b>는 이미 등록돼 있어요.`); return; }
+    if(o==="inside"){ msg(`<b>${esc(h.name)}</b>는 이미 등록한 <b>${esc(r.h.name)}</b> 안에 있어요. 같은 사진을 두 번 세게 되니 따로 등록하지 않아도 됩니다.`); return; }
+    if(o==="outside"){ msg(`<b>${esc(h.name)}</b> 안에 이미 등록한 <b>${esc(r.h.name)}</b>가 들어 있어요. 큰 폴더로 바꾸려면 <b>${esc(r.h.name)}</b>를 먼저 빼 주세요.`); return; }
+  }
+  S.roots.push({id:newId(), h, mode:"sub"}); await saveRoots();
+  msg(`원본 <b>${esc(h.name)}</b>를 추가했어요. <b>갱신</b>을 누르면 이 폴더만 새로 훑고 다시 집계합니다.`);
+  paintSetup(); render();
 }
 
 $("setupBtn").onclick = ()=>{ if($("setup").hidden) openSetup(); else $("setup").hidden=true; };
 $("setupClose").onclick = ()=>{ $("setup").hidden=true; };
 $("welcomeSetup").onclick = openSetup;
-$("pickT").onclick = ()=>pick("t");
-$("pickO").onclick = ()=>pick("o");
+$("pickT").onclick = pickTarget;
+$("addRoot").onclick = addRoot;
 $("optAuto").onchange = e=>{ S.settings.auto = e.target.checked; put("settings",S.settings); };
 $("refreshBtn").onclick = ()=>refresh();
 $("rescanBtn").onclick = ()=>{ $("setup").hidden=true; refresh({rescan:true}); };
@@ -789,20 +912,48 @@ $("moreBtn").onclick = ()=>{ S.showAll=!S.showAll; render(); };
 $("resetBtn").onclick = async ()=>{
   if(!confirm("고른 폴더, 원본 목록, 집계 기록을 모두 지울까요? 사진 파일은 건드리지 않아요.")) return;
   await clearAll();
-  Object.assign(S,{hT:null,hO:null,index:null,bySize:null,fpO:{},results:{},colors:{},last:null,settings:{auto:true}});
-  dirCache.clear(); paintSetup(); render(); openSetup();
+  Object.assign(S,{hT:null,roots:[],index:null,bySize:null,byName:null,fpO:{},results:{},colors:{},last:null,settings:{auto:true}});
+  syncRootMap(); dirCache.clear(); paintSetup(); render(); openSetup();
 };
 
 /* ---------- 시작 ---------- */
+// v1.2 까지의 저장값(원본 하나)을 여러 원본 구조로 옮긴다. 원본을 다시 훑지 않아도 되게.
+async function migrate(v){
+  if(v.roots || !v.hO) return false;
+  const id = "r1";
+  S.roots = [{id, h:v.hO, mode:"sub"}];
+  if(v.index && v.index.files){
+    S.index = {gen:(v.index.gen||0)+1, roots:{[id]:{builtAt:v.index.builtAt, name:v.index.root||v.hO.name, files:v.index.files, stat:v.index.stat}}};
+  }
+  const f = {}; for(const [k,x] of Object.entries(v.fpO||{})) f[id+"/"+k] = x; S.fpO = f;
+  const c = {}; for(const [k,x] of Object.entries(v.colors||{})) c[id+"/"+k] = x; S.colors = c;
+  // 예전 판정을 새 모양으로 옮긴다. seen(처음 본 때)을 지켜야 첫 갱신에 원본 전체 재스캔이 안 돈다.
+  // lv 는 예전 값 그대로 두어 첫 갱신 때 새 규칙으로 다시 판정하게 한다 (그전까지 화면은 예전 결과 그대로).
+  const R = {};
+  for(const [k,r] of Object.entries(v.results||{})){
+    const paths = (r.tops||[]).map(t=>id+"/"+t+"/_");
+    const content = r.st==="ok" || r.st==="dup";
+    R[k] = {hits: content?paths:[], npaths: content?[]:(r.why==="root"?[id+"/_"]:paths),
+            gen:0, sig:"", lv:r.lv||1, seen:r.seen||0, name:r.name||base(k.split("|")[0])};
+  }
+  S.results = R;
+  await put("roots", S.roots); await put("index", S.index); await put("fpO", S.fpO);
+  await put("colors", S.colors); await put("results", S.results); await del("hO");
+  return true;
+}
 async function boot(){
   if(!("showDirectoryPicker" in window)){ $("unsupported").hidden=false; $("refreshBtn").disabled=true; }
-  const [hT,hO,index,fpO,results,colors,settings,last] = await Promise.all(
-    ["hT","hO","index","fpO","results","colors","settings","last"].map(get));
-  Object.assign(S,{hT:hT||null,hO:hO||null,index:index||null,fpO:fpO||{},results:results||{},colors:colors||{},last:last||null});
-  if(settings) S.settings = Object.assign({auto:true},settings);
-  if(S.index) buildBySize();
+  const keys = ["hT","roots","hO","index","fpO","results","colors","settings","last"];
+  const vals = await Promise.all(keys.map(get)), v = {};
+  keys.forEach((k,i)=>v[k]=vals[i]);
+  Object.assign(S,{hT:v.hT||null, roots:v.roots||[], index:v.index||null, fpO:v.fpO||{}, results:v.results||{}, colors:v.colors||{}, last:v.last||null});
+  if(v.settings) S.settings = Object.assign({auto:true},v.settings);
+  const moved = await migrate(v);
+  syncRootMap();
+  if(S.index) buildLookup();
   paintSetup();
   render();
+  if(moved) msg("원본 폴더를 여러 개 등록할 수 있게 바뀌었어요. <b>폴더 설정</b>에서 원본을 추가하고 <b>갱신</b>을 눌러 주세요. 기존 원본은 다시 훑지 않습니다.");
 }
 boot();
 
@@ -811,7 +962,9 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http")){
 }
 
 // 테스트용 창구
-window.KS = { S, refresh, render, put, get, useHandles: async (t,o)=>{ S.hT=t; S.hO=o; await put("hT",t); await put("hO",o); paintSetup(); render(); } };
+window.KS = { S, refresh, render, put, get, classify, boot, setMode, removeRoot,
+  useHandles: async (t, ...roots)=>{ S.hT=t; await put("hT",t); S.roots = roots.map((h,i)=>({id:"t"+i, h, mode:"sub"})); await saveRoots(); paintSetup(); render(); },
+  addHandle: async (h, mode="sub")=>{ S.roots.push({id:newId(), h, mode}); await saveRoots(); paintSetup(); } };
 })();
 </script>
 </body>
