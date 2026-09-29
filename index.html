@@ -14,8 +14,9 @@
   --ink:#f4f4f1; --card:#fcfcfb; --line:#e1e0d9; --line2:#c3c2b7;
   --text:#0b0b0b; --text2:#52514e; --muted:#898781;
   --accent:#2a78d6; --accent-ink:#fff; --warn:#b36b00; --warnbg:#fff4dc;
-  --other:#cfcec5; --dup:#8f8d85; --etc:#adaba2;
+  --other:#d6d5cc; --dup:#6f6d66; --etc:#a3a198;
   --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#4a3aa7;--s8:#e34948;
+  --etc-bg:repeating-linear-gradient(135deg,var(--etc) 0 2.5px,transparent 2.5px 5px);
   --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme:dark){
@@ -24,7 +25,7 @@
     --ink:#0d0d0d; --card:#1a1a19; --line:#2c2c2a; --line2:#383835;
     --text:#fff; --text2:#c3c2b7; --muted:#898781;
     --accent:#3987e5; --warn:#fab219; --warnbg:#2a2310;
-    --other:#4d4c48; --dup:#908e85; --etc:#6c6a64;
+    --other:#4d4c48; --dup:#a9a79e; --etc:#8a8880;
     --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;
     --shadow:none;
   }
@@ -34,7 +35,7 @@
   --ink:#0d0d0d; --card:#1a1a19; --line:#2c2c2a; --line2:#383835;
   --text:#fff; --text2:#c3c2b7; --muted:#898781;
   --accent:#3987e5; --warn:#fab219; --warnbg:#2a2310;
-  --other:#4d4c48; --dup:#908e85; --etc:#6c6a64;
+  --other:#4d4c48; --dup:#a9a79e; --etc:#8a8880;
   --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;
   --shadow:none;
 }
@@ -289,7 +290,7 @@ details summary .ss{font-weight:500;color:var(--muted);font-size:13px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION = "v1.1";
+const APP_VERSION = "v1.2";
 const $ = id => document.getElementById(id);
 $("verTop").textContent = APP_VERSION;
 $("verBot").textContent = APP_VERSION;
@@ -634,7 +635,7 @@ function render(){
     ["내용 일치", fmt(T.ok), pct(T.ok,T.total), "var(--accent)"],
     ["이름으로 추정", fmt(T.guess), pct(T.guess,T.total), "color-mix(in srgb,var(--accent) 40%,transparent)"],
     ["중복 (여러 폴더)", fmt(T.dup), pct(T.dup,T.total), "var(--dup)"],
-    ["기타", fmt(T.etc), pct(T.etc,T.total), "var(--etc)"],
+    ["기타", fmt(T.etc), pct(T.etc,T.total), "var(--etc-bg)"],
   ].map(([k,v,p,c])=>`<div class="tile"><div class="k">${c?`<span class="dot" style="background:${c}"></span>`:""}${k}</div><div class="v">${v}${p?`<small>${p}</small>`:""}</div></div>`).join("");
 
   // 도넛: 폴더 상위 8개 + 그 외 폴더 + 중복 + 기타 = 꿀뷰 전체
@@ -642,14 +643,14 @@ function render(){
   const rest = T.rows.slice(SLOTS);
   if(rest.length) segs.push({n:`그 외 폴더 ${rest.length}개`, c:rest.reduce((a,r)=>a+r[1],0), col:"var(--other)"});
   if(T.dup) segs.push({n:"중복", c:T.dup, col:"var(--dup)", sp:true});
-  if(T.etc) segs.push({n:"기타", c:T.etc, col:"var(--etc)", sp:true});
+  if(T.etc) segs.push({n:"기타", c:T.etc, col:"var(--etc-bg)", stroke:"url(#etcHatch)", sp:true});
   const sum = T.total;
   $("donutSub").textContent = `전체 ${fmt(T.total)}장 기준`;
   const R=90, C=2*Math.PI*R, GAP = segs.length>1 ? 2.2 : 0;
-  let acc = 0, svg = `<svg viewBox="0 0 220 220" role="img" aria-label="폴더별 사진 비중"><circle cx="110" cy="110" r="${R}" fill="none" stroke="var(--line)" stroke-width="26"/>`;
+  let acc = 0, svg = `<svg viewBox="0 0 220 220" role="img" aria-label="폴더별 사진 비중"><defs><pattern id="etcHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><rect width="6" height="6" style="fill:var(--card)"/><rect width="3" height="6" style="fill:var(--etc)"/></pattern></defs><circle cx="110" cy="110" r="${R}" fill="none" stroke="var(--line)" stroke-width="26"/>`;
   segs.forEach((s,i)=>{
     const len = sum? s.c/sum*C : 0, draw = Math.max(len-GAP,0.6);
-    svg += `<circle class="seg" data-i="${i}" cx="110" cy="110" r="${R}" stroke="${s.col}" stroke-dasharray="${draw} ${C-draw}" stroke-dashoffset="${-acc}" transform="rotate(-90 110 110)"/>`;
+    svg += `<circle class="seg" data-i="${i}" cx="110" cy="110" r="${R}" stroke="${s.stroke||s.col}" stroke-dasharray="${draw} ${C-draw}" stroke-dashoffset="${-acc}" transform="rotate(-90 110 110)"/>`;
     acc += len;
   });
   svg += `</svg><div class="ctr"><div class="n">${fmt(T.total)}</div><div class="l">꿀뷰 사진</div></div>`;
@@ -680,7 +681,7 @@ function render(){
   let html = show.map(([n,c,g],i)=>rkRow(i+1,n,c,colors.get(n)||"var(--other)",max,T.total,"",g)).join("");
   const sp = [];
   if(T.dup) sp.push(["중복", T.dup, "var(--dup)"]);
-  if(T.etc) sp.push(["기타", T.etc, "var(--etc)"]);
+  if(T.etc) sp.push(["기타", T.etc, "var(--etc-bg)"]);
   html += sp.map(([n,c,col],i)=>rkRow("",n,c,col,max,T.total,i===0&&show.length?"sep special":"special")).join("");
   $("rank").innerHTML = html || `<div class="empty" style="padding:20px">표시할 사진이 없어요</div>`;
   $("moreWrap").hidden = T.rows.length<=RANK_SHOW;
