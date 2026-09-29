@@ -1,0 +1,16 @@
+{
+  "name": "꿀뷰 출처 통계",
+  "short_name": "꿀뷰 출처",
+  "description": "꿀뷰 폴더 사진이 원본의 어느 폴더에서 왔는지 집계합니다",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#16161a",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

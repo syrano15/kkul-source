@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>꿀뷰 출처 통계</title>
+<meta name="theme-color" content="#16161a">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{
+  color-scheme:light;
+  --ink:#f4f4f1; --card:#fcfcfb; --line:#e1e0d9; --line2:#c3c2b7;
+  --text:#0b0b0b; --text2:#52514e; --muted:#898781;
+  --accent:#2a78d6; --accent-ink:#fff; --warn:#b36b00; --warnbg:#fff4dc;
+  --other:#cfcec5; --dup:#8f8d85; --etc:#adaba2;
+  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#4a3aa7;--s8:#e34948;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ink:#0d0d0d; --card:#1a1a19; --line:#2c2c2a; --line2:#383835;
+    --text:#fff; --text2:#c3c2b7; --muted:#898781;
+    --accent:#3987e5; --warn:#fab219; --warnbg:#2a2310;
+    --other:#4d4c48; --dup:#908e85; --etc:#6c6a64;
+    --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ink:#0d0d0d; --card:#1a1a19; --line:#2c2c2a; --line2:#383835;
+  --text:#fff; --text2:#c3c2b7; --muted:#898781;
+  --accent:#3987e5; --warn:#fab219; --warnbg:#2a2310;
+  --other:#4d4c48; --dup:#908e85; --etc:#6c6a64;
+  --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;
+  --shadow:none;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--ink);color:var(--text)}
+body{font-family:"Pretendard Variable",Pretendard,"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",system-ui,sans-serif;
+  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 20px 40px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.brand{display:flex;align-items:baseline;gap:10px;flex:1;min-width:0}
+.brand h1{font-size:22px;margin:0;font-weight:750;letter-spacing:-.02em}
+.ver{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.btn{border:1px solid var(--line2);background:var(--card);border-radius:10px;padding:8px 14px;font-weight:600;font-size:14px}
+.btn:hover{border-color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);padding:10px 20px;font-size:15px}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:none;border-color:transparent;color:var(--text2)}
+.btn.ghost:hover{border-color:var(--line2)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow)}
+.card h2{font-size:15px;margin:0 0 14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.card h2 .sub{font-weight:500;color:var(--muted);font-size:13px}
+.stack{display:grid;gap:16px}
+
+/* 설정 */
+.setup .row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.setup .row:first-of-type{border-top:0}
+.setup .lbl{width:92px;font-weight:650;flex:none}
+.setup .val{flex:1;min-width:0;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.setup .val.empty{color:var(--muted)}
+.setup .hint{font-size:13px;color:var(--muted);margin:10px 0 0}
+.setup .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.opt{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:var(--text2);margin-top:12px;cursor:pointer}
+.opt input{margin-top:3px}
+
+/* 진행 */
+.prog .stage{font-weight:650}
+.prog .detail{color:var(--text2);font-size:13.5px;margin-top:2px;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:3px;transition:width .2s}
+.bar.indet i{width:30%;animation:slide 1.2s ease-in-out infinite}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(340%)}}
+.prog .foot{display:flex;justify-content:flex-end;margin-top:10px}
+
+.note{border-radius:12px;padding:12px 16px;font-size:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.note.warn{background:var(--warnbg);color:var(--text)}
+.note.warn b{color:var(--warn)}
+.note .grow{flex:1;min-width:200px}
+.note.err{background:var(--warnbg)}
+
+/* 숫자 칸 */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
+.tile .k{font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px}
+.tile .v{font-size:28px;font-weight:750;letter-spacing:-.02em;margin-top:2px}
+.tile .v small{font-size:14px;font-weight:600;color:var(--muted);margin-left:4px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block}
+
+/* 차트 */
+.grid2{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px;align-items:start}
+.donutbox{display:flex;flex-direction:column;align-items:center;gap:18px}
+.donut{position:relative;width:min(280px,70vw);aspect-ratio:1}
+.donut svg{width:100%;height:100%;display:block;overflow:visible}
+.donut .seg{fill:none;stroke-width:26;transition:stroke-width .15s}
+.donut .seg.hot{stroke-width:32}
+.donut .ctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center;padding:0 22%}
+.donut .ctr .n{font-size:34px;font-weight:780;letter-spacing:-.03em;line-height:1.1}
+.donut .ctr .l{font-size:13px;color:var(--text2);margin-top:4px;word-break:keep-all}
+.legend{width:100%;display:grid;gap:2px}
+.lg{display:grid;grid-template-columns:12px 1fr auto 46px;gap:10px;align-items:center;padding:5px 8px;border-radius:8px;font-size:14px}
+.lg:hover,.lg.hot{background:color-mix(in srgb,var(--text) 6%,transparent)}
+.lg .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg.sep{border-top:1px dashed var(--line2);border-radius:0 0 8px 8px;margin-top:4px;padding-top:8px}
+.lg .c{font-weight:650;font-variant-numeric:tabular-nums;text-align:right}
+.lg .p{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;font-size:13px}
+.sw{width:12px;height:12px;border-radius:3px}
+
+.rank{display:grid;gap:4px}
+.rk{display:grid;grid-template-columns:26px minmax(90px,200px) 1fr 64px 50px;gap:10px;align-items:center;padding:4px 6px;border-radius:8px;font-size:14px}
+.rk:hover{background:color-mix(in srgb,var(--text) 5%,transparent)}
+.rk .no{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;font-size:13px}
+.rk .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:550}
+.rk .track{height:18px;position:relative}
+.rk .fill{position:absolute;left:0;top:0;bottom:0;border-radius:0 4px 4px 0;min-width:2px}
+.rk .c{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.rk .p{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
+.rk.sep{border-top:1px dashed var(--line2);margin-top:6px;padding-top:10px;border-radius:0}
+.rk.special .nm{color:var(--text2);font-weight:500}
+.more{margin-top:8px;display:flex;justify-content:center}
+
+.tip{position:fixed;z-index:50;pointer-events:none;background:var(--text);color:var(--card);border-radius:8px;padding:6px 10px;font-size:13px;white-space:nowrap;transform:translate(-50%,calc(-100% - 12px));opacity:0;transition:opacity .1s}
+.tip.on{opacity:1}
+.tip b{font-weight:700}
+
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-top:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--text2);font-size:13px;border-top:0}
+td.fn{word-break:break-all;width:45%}
+.chip{display:inline-block;border:1px solid var(--line2);border-radius:999px;padding:1px 9px;font-size:12.5px;margin:2px 4px 2px 0;color:var(--text2)}
+details summary{cursor:pointer;font-weight:700;font-size:15px;list-style:none;display:flex;align-items:center;gap:8px}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"▸";color:var(--muted);font-size:12px;transition:transform .15s}
+details[open] summary::before{transform:rotate(90deg)}
+details .body{margin-top:12px}
+.etclist{columns:2 260px;column-gap:24px;font-size:13.5px;color:var(--text2);margin:0;padding-left:18px}
+.etclist li{break-inside:avoid;word-break:break-all}
+
+.meta{display:flex;gap:6px 18px;flex-wrap:wrap;color:var(--muted);font-size:13px;align-items:center}
+.meta .sp{flex:1}
+.empty{text-align:center;color:var(--text2);padding:40px 20px}
+.empty b{display:block;font-size:17px;color:var(--text);margin-bottom:6px}
+
+@media (max-width:860px){
+  .grid2{grid-template-columns:1fr}
+  .tiles{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:520px){
+  .wrap{padding:16px 16px 32px}
+  .rk{grid-template-columns:20px minmax(70px,110px) 1fr 50px;gap:8px}
+  .rk .p{display:none}
+  .setup .row{flex-wrap:wrap}
+  .setup .lbl{width:auto}
+  .setup .val{flex-basis:100%;order:3}
+  .tile .v{font-size:24px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><h1>꿀뷰 출처 통계</h1><span class="ver" id="verTop"></span></div>
+    <button class="btn ghost" id="setupBtn">폴더 설정</button>
+    <button class="btn primary" id="refreshBtn">갱신</button>
+  </header>
+
+  <div class="stack">
+    <div class="note err" id="unsupported" hidden>
+      <div class="grow"><b>이 브라우저에서는 폴더를 읽을 수 없어요.</b> PC의 크롬이나 엣지에서 열어 주세요.</div>
+    </div>
+
+    <section class="card setup" id="setup" hidden>
+      <h2>폴더 설정</h2>
+      <div class="row">
+        <div class="lbl">꿀뷰 폴더</div>
+        <div class="val empty" id="tName">아직 안 골랐어요</div>
+        <button class="btn sm" id="pickT">고르기</button>
+      </div>
+      <div class="row">
+        <div class="lbl">원본 폴더</div>
+        <div class="val empty" id="oName">아직 안 골랐어요</div>
+        <button class="btn sm" id="pickO">고르기</button>
+      </div>
+      <p class="hint">꿀뷰 폴더는 <b>Pictures\꿀뷰</b>, 원본 폴더는 <b>D:\01.메인</b>을 고르면 됩니다. 원본 폴더 바로 아래 폴더 이름으로 집계해요.<br>
+      권한을 물으면 <b>"방문할 때마다 허용"</b>을 고르세요. 그래야 매번 다시 묻지 않습니다.</p>
+      <label class="opt"><input type="checkbox" id="optAuto">
+        <span>새로 들어온 사진의 원본을 못 찾으면 원본 폴더를 자동으로 다시 훑기<br><span style="color:var(--muted)">원본 쪽에 새로 넣은 폴더도 반영돼요. 대신 그날은 갱신이 5~20분 걸립니다.</span></span></label>
+      <div class="foot">
+        <button class="btn sm ghost" id="resetBtn">기록 전부 지우기</button>
+        <button class="btn sm" id="rescanBtn">원본 다시 훑기</button>
+        <button class="btn sm" id="setupClose">닫기</button>
+      </div>
+    </section>
+
+    <section class="card prog" id="prog" hidden>
+      <div class="stage" id="pStage"></div>
+      <div class="detail" id="pDetail"></div>
+      <div class="bar indet" id="pBar"><i></i></div>
+      <div class="foot"><button class="btn sm" id="cancelBtn">중단</button></div>
+    </section>
+
+    <div class="note warn" id="msg" hidden></div>
+
+    <div id="view" hidden>
+      <div class="stack">
+        <div class="tiles" id="tiles"></div>
+        <div class="grid2">
+          <section class="card">
+            <h2>폴더별 비중 <span class="sub" id="donutSub"></span></h2>
+            <div class="donutbox">
+              <div class="donut" id="donut"></div>
+              <div class="legend" id="legend"></div>
+            </div>
+          </section>
+          <section class="card">
+            <h2>폴더 순위 <span class="sub" id="rankSub"></span></h2>
+            <div class="rank" id="rank"></div>
+            <div class="more" id="moreWrap" hidden><button class="btn sm ghost" id="moreBtn"></button></div>
+          </section>
+        </div>
+        <section class="card" id="dupCard" hidden>
+          <details id="dupDet" open>
+            <summary>중복 <span class="sub" style="font-weight:500;color:var(--muted);font-size:13px" id="dupSub"></span></summary>
+            <div class="body">
+              <table><thead><tr><th>파일명</th><th>원본이 있는 폴더</th></tr></thead><tbody id="dupBody"></tbody></table>
+            </div>
+          </details>
+        </section>
+        <section class="card" id="etcCard" hidden>
+          <details>
+            <summary>기타 <span style="font-weight:500;color:var(--muted);font-size:13px" id="etcSub"></span></summary>
+            <div class="body"><ul class="etclist" id="etcList"></ul></div>
+          </details>
+        </section>
+        <div class="meta"><span id="mLast"></span><span id="mIndex"></span><span class="sp"></span><span id="verBot"></span></div>
+      </div>
+    </div>
+
+    <section class="card empty" id="welcome" hidden>
+      <b id="wTitle">처음 오셨네요</b>
+      꿀뷰 폴더와 원본 폴더를 고른 뒤 <b style="display:inline;font-size:inherit">갱신</b>을 누르면 집계가 시작돼요.<br>
+      첫 집계는 원본 목록을 만드느라 20~40분 걸리고, 그다음부터는 새 사진만 확인합니다.
+      <div style="margin-top:16px"><button class="btn primary" id="welcomeSetup">폴더 고르기</button></div>
+    </section>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+(function(){
+"use strict";
+const APP_VERSION = "v1.0";
+const $ = id => document.getElementById(id);
+$("verTop").textContent = APP_VERSION;
+$("verBot").textContent = APP_VERSION;
+
+const EXT = /\.(jpe?g|jfif|png|gif|webp|bmp|heic|heif|avif|tiff?)$/i;
+const FP_CHUNK = 262144;      // 앞·뒤 256KB 로 지문을 뜬다
+const SLOTS = 8;              // 색을 가지는 폴더 수 (나머지는 "그 외")
+const RANK_SHOW = 20;
+
+/* ---------- 저장소 (IndexedDB) ---------- */
+let dbp = null;
+function db(){
+  if(!dbp) dbp = new Promise((ok,no)=>{
+    const r = indexedDB.open("kkul-source",1);
+    r.onupgradeneeded = ()=> r.result.createObjectStore("kv");
+    r.onsuccess = ()=> ok(r.result);
+    r.onerror = ()=> no(r.error);
+  });
+  return dbp;
+}
+async function get(k){
+  const d = await db();
+  return new Promise((ok,no)=>{ const r=d.transaction("kv").objectStore("kv").get(k); r.onsuccess=()=>ok(r.result); r.onerror=()=>no(r.error); });
+}
+async function put(k,v){
+  const d = await db();
+  return new Promise((ok,no)=>{ const t=d.transaction("kv","readwrite"); t.objectStore("kv").put(v,k); t.oncomplete=()=>ok(); t.onerror=()=>no(t.error); });
+}
+async function clearAll(){
+  const d = await db();
+  return new Promise((ok,no)=>{ const t=d.transaction("kv","readwrite"); t.objectStore("kv").clear(); t.oncomplete=()=>ok(); t.onerror=()=>no(t.error); });
+}
+
+/* ---------- 상태 ---------- */
+const S = {
+  hT:null, hO:null,           // 폴더 핸들
+  index:null,                 // {gen, builtAt, root, files:[[path,size,mtime],...]}
+  bySize:null,                // Map size -> [entry]
+  fpO:{},                     // 원본 지문 캐시  "path|size|mtime" -> fp
+  results:{},                 // 꿀뷰 사진별 판정  "path|size|mtime" -> {st,tops,gen,seen,name}
+  colors:{},                  // 폴더 -> 색 칸 번호 (한 번 정하면 유지)
+  settings:{auto:true},
+  last:null,                  // {at}
+  busy:false, abort:null, showAll:false
+};
+
+/* ---------- 파일 시스템 ---------- */
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const tick = () => new Promise(r=>setTimeout(r,0));
+function base(p){ const i=p.lastIndexOf("/"); return i<0?p:p.slice(i+1); }
+function topOf(p){ const i=p.indexOf("/"); return i<0?null:p.slice(0,i); }
+function keyOf(path,size,mtime){ return path+"|"+size+"|"+mtime; }
+function abortErr(){ const e=new Error("중단됨"); e.name="AbortError"; return e; }
+
+async function perm(h, ask){
+  if(!h) return false;
+  const o = {mode:"read"};
+  try{
+    if((await h.queryPermission(o))==="granted") return true;
+    if(!ask) return false;
+    return (await h.requestPermission(o))==="granted";
+  }catch(e){ return false; }
+}
+
+// 폴더를 통째로 훑어 [상대경로, 크기, 수정시각] 목록을 만든다. 파일은 열지 않는다.
+async function listDir(root, {signal, onProgress, keep}){
+  const out = [], handles = keep ? new Map() : null;
+  const queue = [[root,""]];
+  let active = 0, dirs = 0, lastPaint = 0;
+  async function worker(){
+    for(;;){
+      if(signal && signal.aborted) throw abortErr();
+      const job = queue.pop();
+      if(!job){ if(active===0) return; await sleep(4); continue; }
+      active++;
+      try{
+        const [dir,prefix] = job, fh = [];
+        try{
+          for await (const [name,h] of dir.entries()){
+            if(h.kind==="directory"){ if(name!=="$RECYCLE.BIN" && name!=="System Volume Information") queue.push([h,prefix+name+"/"]); }
+            else if(EXT.test(name)) fh.push([h,prefix+name]);
+          }
+        }catch(e){ if(e.name==="AbortError") throw e; /* 못 여는 폴더는 건너뜀 */ }
+        for(let i=0;i<fh.length;i+=24){
+          if(signal && signal.aborted) throw abortErr();
+          await Promise.all(fh.slice(i,i+24).map(async ([h,p])=>{
+            try{ const f=await h.getFile(); out.push([p,f.size,f.lastModified]); if(handles) handles.set(p,h); }catch(e){}
+          }));
+        }
+        dirs++;
+        const now = performance.now();
+        if(onProgress && now-lastPaint>150){ lastPaint=now; onProgress(dirs,out.length); }
+      } finally { active--; }
+    }
+  }
+  await Promise.all(Array.from({length:6},worker));
+  if(onProgress) onProgress(dirs,out.length);
+  return {files:out, handles};
+}
+
+// 원본 폴더 안의 파일을 경로로 찾아 연다 (폴더 핸들은 캐시)
+const dirCache = new Map();
+async function openOrig(path){
+  const segs = path.split("/"), name = segs.pop();
+  let d = S.hO, acc = "";
+  for(const s of segs){
+    acc += s+"/";
+    let c = dirCache.get(acc);
+    if(!c){ c = await d.getDirectoryHandle(s); dirCache.set(acc,c); }
+    d = c;
+  }
+  return (await d.getFileHandle(name)).getFile();
+}
+
+// 지문: 크기 + 앞 256KB + 뒤 256KB 의 SHA-256
+async function fingerprint(file){
+  const n = file.size;
+  const parts = n <= FP_CHUNK*2
+    ? [new Uint8Array(await file.arrayBuffer())]
+    : [new Uint8Array(await file.slice(0,FP_CHUNK).arrayBuffer()), new Uint8Array(await file.slice(n-FP_CHUNK).arrayBuffer())];
+  const head = new TextEncoder().encode(String(n)+":");
+  const len = head.length + parts.reduce((a,p)=>a+p.length,0);
+  const buf = new Uint8Array(len); let o = 0;
+  buf.set(head,o); o+=head.length;
+  for(const p of parts){ buf.set(p,o); o+=p.length; }
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256",buf));
+  let s=""; for(let i=0;i<16;i++) s+=d[i].toString(16).padStart(2,"0");
+  return s;
+}
+
+function buildBySize(){
+  const m = new Map();
+  for(const e of S.index.files){ const a=m.get(e[1]); if(a) a.push(e); else m.set(e[1],[e]); }
+  S.bySize = m;
+}
+
+// 꿀뷰 사진 하나의 출처를 정한다
+async function resolve(t, handle){
+  const cands = S.bySize.get(t.size) || [];
+  const hit = [];
+  let tfp = null;
+  for(const c of cands){
+    if(base(c[0])===t.name && c[2]===t.mtime){ hit.push(c[0]); continue; }   // 이름·크기·수정시각이 모두 같으면 확정
+    try{
+      if(tfp===null) tfp = await fingerprint(await handle.getFile());
+      const k = keyOf(c[0],c[1],c[2]);
+      let ofp = S.fpO[k];
+      if(!ofp){ ofp = await fingerprint(await openOrig(c[0])); S.fpO[k] = ofp; }
+      if(ofp===tfp) hit.push(c[0]);
+    }catch(e){ if(e.name==="AbortError") throw e; }
+  }
+  const tops = [...new Set(hit.map(topOf).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko"));
+  if(tops.length===0) return {st:"etc", tops:[]};
+  if(tops.length===1) return {st:"ok", tops};
+  return {st:"dup", tops};
+}
+
+/* ---------- 진행 표시 ---------- */
+function prog(stage, detail, frac){
+  $("prog").hidden = false;
+  $("pStage").textContent = stage;
+  $("pDetail").textContent = detail||"";
+  const b = $("pBar");
+  if(frac==null){ b.classList.add("indet"); b.firstElementChild.style.width=""; }
+  else { b.classList.remove("indet"); b.firstElementChild.style.width = Math.round(frac*100)+"%"; }
+}
+function progOff(){ $("prog").hidden = true; }
+function msg(html){ const m=$("msg"); if(!html){ m.hidden=true; m.innerHTML=""; return; } m.innerHTML=html; m.hidden=false; }
+const fmt = n => n.toLocaleString("ko-KR");
+function when(t){
+  if(!t) return "-";
+  const d = new Date(t), p = n=>String(n).padStart(2,"0");
+  return `${d.getMonth()+1}월 ${d.getDate()}일 ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function dur(ms){ const s=Math.round(ms/1000); return s<60?`${s}초`:`${Math.floor(s/60)}분 ${s%60}초`; }
+
+/* ---------- 원본 목록 만들기 ---------- */
+async function buildIndex(signal){
+  const t0 = performance.now();
+  prog("원본 목록 만드는 중", "폴더를 훑고 있어요", null);
+  const r = await listDir(S.hO, {signal, onProgress:(d,n)=>prog("원본 목록 만드는 중",
+    `폴더 ${fmt(d)}개 · 사진 ${fmt(n)}장 · ${dur(performance.now()-t0)}`, null)});
+  const gen = ((S.index && S.index.gen)||0) + 1;
+  S.index = {gen, builtAt:Date.now(), root:S.hO.name, files:r.files};
+  dirCache.clear();
+  buildBySize();
+  // 목록에서 사라진 원본의 지문은 버린다
+  const alive = new Set(r.files.map(e=>keyOf(e[0],e[1],e[2])));
+  for(const k of Object.keys(S.fpO)) if(!alive.has(k)) delete S.fpO[k];
+  await put("index", S.index);
+  await put("fpO", S.fpO);
+}
+
+/* ---------- 갱신 ---------- */
+async function refresh(opt={}){
+  if(S.busy) return;
+  msg("");
+  if(!S.hT || !S.hO){ openSetup(); msg("먼저 <b>꿀뷰 폴더</b>와 <b>원본 폴더</b>를 골라 주세요."); return; }
+  // 권한은 클릭 직후에 묻는다
+  const okT = await perm(S.hT, true);
+  const okO = okT && await perm(S.hO, true);
+  if(!okT || !okO){
+    msg("폴더 읽기 권한이 필요해요. <b>갱신</b>을 한 번 더 누르고 권한 창에서 <b>\"방문할 때마다 허용\"</b>을 골라 주세요.");
+    return;
+  }
+  S.busy = true; S.abort = new AbortController();
+  const signal = S.abort.signal;
+  $("refreshBtn").disabled = true; $("rescanBtn").disabled = true;
+  const t0 = performance.now();
+  try{
+    const seenAt = Date.now();
+    prog("꿀뷰 폴더 읽는 중", "", null);
+    const tr = await listDir(S.hT, {signal, keep:true, onProgress:(d,n)=>prog("꿀뷰 폴더 읽는 중", `사진 ${fmt(n)}장`, null)});
+    if(!S.index || opt.rescan) await buildIndex(signal);
+    else if(!S.bySize) buildBySize();
+
+    let rescanned = !!opt.rescan || false;
+    for(let pass=0; pass<2; pass++){
+      const next = {}, todo = [];
+      for(const [p,size,mtime] of tr.files){
+        const k = keyOf(p,size,mtime), c = S.results[k];
+        if(c && (c.st!=="etc" || c.gen===S.index.gen)) next[k] = c;
+        else todo.push([k,p,size,mtime,c]);
+      }
+      for(let i=0;i<todo.length;i++){
+        if(signal.aborted) throw abortErr();
+        const [k,p,size,mtime,c] = todo[i];
+        if(i%4===0) prog("출처 찾는 중", `새 사진 ${fmt(i)} / ${fmt(todo.length)}`, todo.length?i/todo.length:1);
+        const r = await resolve({name:base(p), size, mtime}, tr.handles.get(p));
+        next[k] = {st:r.st, tops:r.tops, gen:S.index.gen, seen:c?c.seen:seenAt, name:base(p)};
+        if(i%200===199){ await put("fpO", S.fpO); }
+      }
+      S.results = next;
+      await put("results", S.results);
+      await put("fpO", S.fpO);
+      // 원본 목록을 만든 뒤에 들어온 사진인데 출처를 못 찾았다 → 원본 쪽에 새 폴더가 생겼을 수 있다
+      const fresh = Object.values(S.results).filter(r=>r.st==="etc" && r.seen>S.index.builtAt).length;
+      if(pass===0 && fresh && S.settings.auto && !rescanned){ rescanned = true; await buildIndex(signal); continue; }
+      if(fresh && !S.settings.auto){
+        msg(`<div class="grow">새로 들어온 사진 중 <b>${fmt(fresh)}장</b>의 원본을 못 찾았어요. 원본 폴더에 새로 넣은 사진이라면 원본을 다시 훑어야 잡힙니다.</div><button class="btn sm" id="msgRescan">원본 다시 훑기</button>`);
+        $("msgRescan").onclick = ()=>refresh({rescan:true});
+      }
+      break;
+    }
+    S.last = {at:Date.now(), took:performance.now()-t0};
+    await put("last", S.last);
+    render();
+  }catch(e){
+    if(e.name==="AbortError") msg("중단했어요. 이미 확인한 사진은 기억해 두었으니, 다음 갱신은 이어서 합니다.");
+    else if(e.name==="NotFoundError") msg("폴더를 찾을 수 없어요. 옮겨졌거나 이름이 바뀌었다면 <b>폴더 설정</b>에서 다시 골라 주세요.");
+    else { console.error(e); msg("오류가 났어요: "+esc(e.message||String(e))); }
+    // 중단돼도 그때까지 뜬 지문은 남긴다
+    try{ await put("fpO", S.fpO); }catch(_){}
+  }finally{
+    S.busy = false; S.abort = null;
+    $("refreshBtn").disabled = false; $("rescanBtn").disabled = false;
+    progOff();
+  }
+}
+
+/* ---------- 화면 ---------- */
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function pct(n,t){ if(!t) return "0%"; const v=n/t*100; return (v>=10||v===0?Math.round(v):v.toFixed(1))+"%"; }
+
+function tally(){
+  const by = new Map(); let dup=0, etc=0, total=0;
+  const dups = [], etcs = [];
+  for(const r of Object.values(S.results)){
+    total++;
+    if(r.st==="ok") by.set(r.tops[0],(by.get(r.tops[0])||0)+1);
+    else if(r.st==="dup"){ dup++; dups.push(r); }
+    else { etc++; etcs.push(r.name); }
+  }
+  const rows = [...by.entries()].sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],"ko"));
+  return {rows, dup, etc, total, dups, etcs, ok: total-dup-etc};
+}
+
+// 색은 폴더에 붙는다. 순위가 바뀌어도 같은 폴더는 같은 색.
+function assignColors(rows){
+  const top = rows.slice(0,SLOTS).map(r=>r[0]);
+  const used = new Set(top.map(n=>S.colors[n]).filter(v=>v!=null));
+  let changed = false;
+  for(const n of top){
+    const c = S.colors[n];
+    if(c==null || [...top].filter(x=>S.colors[x]===c).length>1){
+      if(c!=null) used.delete(c);
+      for(let s=1;s<=SLOTS;s++) if(!used.has(s)){ S.colors[n]=s; used.add(s); changed=true; break; }
+    }
+  }
+  if(changed) put("colors",S.colors);
+  const m = new Map(); top.forEach(n=>m.set(n,`var(--s${S.colors[n]})`));
+  return m;
+}
+
+const tip = $("tip");
+function tipOn(e,html){ tip.innerHTML=html; tip.classList.add("on"); tip.style.left=e.clientX+"px"; tip.style.top=e.clientY+"px"; }
+function tipOff(){ tip.classList.remove("on"); }
+
+function render(){
+  const hasData = Object.keys(S.results).length>0 || S.last;
+  $("welcome").hidden = !!hasData;
+  $("view").hidden = !hasData;
+  if(!hasData){
+    const ready = S.hT && S.hO;
+    $("wTitle").textContent = ready ? "준비됐어요" : "처음 오셨네요";
+    $("welcomeSetup").hidden = !!ready;
+    return;
+  }
+
+  const T = tally(), colors = assignColors(T.rows);
+
+  // 숫자 칸
+  $("tiles").innerHTML = [
+    ["꿀뷰 사진", fmt(T.total), "", ""],
+    ["출처 폴더 확인", fmt(T.ok), pct(T.ok,T.total), "var(--accent)"],
+    ["중복 (여러 폴더)", fmt(T.dup), pct(T.dup,T.total), "var(--dup)"],
+    ["기타", fmt(T.etc), pct(T.etc,T.total), "var(--etc)"],
+  ].map(([k,v,p,c])=>`<div class="tile"><div class="k">${c?`<span class="dot" style="background:${c}"></span>`:""}${k}</div><div class="v">${v}${p?`<small>${p}</small>`:""}</div></div>`).join("");
+
+  // 도넛: 폴더 상위 8개 + 그 외 폴더 + 중복 + 기타 = 꿀뷰 전체
+  const segs = T.rows.slice(0,SLOTS).map(([n,c])=>({n,c,col:colors.get(n)}));
+  const rest = T.rows.slice(SLOTS);
+  if(rest.length) segs.push({n:`그 외 폴더 ${rest.length}개`, c:rest.reduce((a,r)=>a+r[1],0), col:"var(--other)"});
+  if(T.dup) segs.push({n:"중복", c:T.dup, col:"var(--dup)", sp:true});
+  if(T.etc) segs.push({n:"기타", c:T.etc, col:"var(--etc)", sp:true});
+  const sum = T.total;
+  $("donutSub").textContent = `전체 ${fmt(T.total)}장 기준`;
+  const R=90, C=2*Math.PI*R, GAP = segs.length>1 ? 2.2 : 0;
+  let acc = 0, svg = `<svg viewBox="0 0 220 220" role="img" aria-label="폴더별 사진 비중"><circle cx="110" cy="110" r="${R}" fill="none" stroke="var(--line)" stroke-width="26"/>`;
+  segs.forEach((s,i)=>{
+    const len = sum? s.c/sum*C : 0, draw = Math.max(len-GAP,0.6);
+    svg += `<circle class="seg" data-i="${i}" cx="110" cy="110" r="${R}" stroke="${s.col}" stroke-dasharray="${draw} ${C-draw}" stroke-dashoffset="${-acc}" transform="rotate(-90 110 110)"/>`;
+    acc += len;
+  });
+  svg += `</svg><div class="ctr"><div class="n">${fmt(T.total)}</div><div class="l">꿀뷰 사진</div></div>`;
+  $("donut").innerHTML = sum ? svg : `<div class="ctr"><div class="l">꿀뷰 폴더에 사진이 없어요</div></div>`;
+  let firstSp = true;
+  $("legend").innerHTML = segs.map((s,i)=>{
+    const cls = s.sp && firstSp && i>0 ? " sep" : ""; if(s.sp) firstSp=false;
+    return `<div class="lg${cls}" data-i="${i}"><span class="sw" style="background:${s.col}"></span><span class="nm" title="${esc(s.n)}">${esc(s.n)}</span><span class="c">${fmt(s.c)}</span><span class="p">${pct(s.c,sum)}</span></div>`;
+  }).join("");
+  const hot = (i,on)=>{
+    $("donut").querySelectorAll(".seg").forEach(el=>el.classList.toggle("hot", on && el.dataset.i==i));
+    $("legend").querySelectorAll(".lg").forEach(el=>el.classList.toggle("hot", on && el.dataset.i==i));
+  };
+  $("donut").querySelectorAll(".seg").forEach(el=>{
+    const s = segs[el.dataset.i];
+    el.onmousemove = e=>{ hot(el.dataset.i,true); tipOn(e,`<b>${esc(s.n)}</b> · ${fmt(s.c)}장 · ${pct(s.c,sum)}`); };
+    el.onmouseleave = ()=>{ hot(0,false); tipOff(); };
+  });
+  $("legend").querySelectorAll(".lg").forEach(el=>{
+    el.onmouseenter = ()=>hot(el.dataset.i,true);
+    el.onmouseleave = ()=>hot(0,false);
+  });
+
+  // 순위 막대
+  const max = Math.max(1, ...T.rows.map(r=>r[1]), T.dup, T.etc);
+  const show = S.showAll ? T.rows : T.rows.slice(0,RANK_SHOW);
+  $("rankSub").textContent = `폴더 ${fmt(T.rows.length)}개`;
+  let html = show.map(([n,c],i)=>rkRow(i+1,n,c,colors.get(n)||"var(--other)",max,T.total)).join("");
+  const sp = [];
+  if(T.dup) sp.push(["중복", T.dup, "var(--dup)"]);
+  if(T.etc) sp.push(["기타", T.etc, "var(--etc)"]);
+  html += sp.map(([n,c,col],i)=>rkRow("",n,c,col,max,T.total,i===0&&show.length?"sep special":"special")).join("");
+  $("rank").innerHTML = html || `<div class="empty" style="padding:20px">표시할 사진이 없어요</div>`;
+  $("moreWrap").hidden = T.rows.length<=RANK_SHOW;
+  $("moreBtn").textContent = S.showAll ? "상위 20개만 보기" : `나머지 ${T.rows.length-RANK_SHOW}개 폴더 더 보기`;
+  $("rank").querySelectorAll(".rk").forEach(el=>{
+    el.onmousemove = e=>tipOn(e,`<b>${esc(el.dataset.n)}</b> · ${fmt(+el.dataset.c)}장 · ${pct(+el.dataset.c,T.total)}`);
+    el.onmouseleave = tipOff;
+  });
+
+  // 중복
+  $("dupCard").hidden = !T.dup;
+  $("dupSub").textContent = `${fmt(T.dup)}장`;
+  $("dupBody").innerHTML = T.dups.sort((a,b)=>a.name.localeCompare(b.name,"ko"))
+    .map(r=>`<tr><td class="fn">${esc(r.name)}</td><td>${r.tops.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</td></tr>`).join("");
+
+  // 기타
+  $("etcCard").hidden = !T.etc;
+  $("etcSub").textContent = `${fmt(T.etc)}장 — 원본 폴더에서 못 찾은 사진`;
+  const el = T.etcs.sort((a,b)=>a.localeCompare(b,"ko"));
+  $("etcList").innerHTML = el.slice(0,1000).map(n=>`<li>${esc(n)}</li>`).join("") + (el.length>1000?`<li>… 외 ${fmt(el.length-1000)}장</li>`:"");
+
+  $("mLast").textContent = S.last ? `마지막 갱신 ${when(S.last.at)}${S.last.took?` (${dur(S.last.took)})`:""}` : "";
+  $("mIndex").textContent = S.index ? `원본 목록 ${when(S.index.builtAt)} · 사진 ${fmt(S.index.files.length)}장` : "";
+}
+function rkRow(no,n,c,col,max,total,cls=""){
+  return `<div class="rk ${cls}" data-n="${esc(n)}" data-c="${c}"><span class="no">${no}</span><span class="nm" title="${esc(n)}">${esc(n)}</span>`+
+    `<span class="track"><span class="fill" style="width:${(c/max*100).toFixed(2)}%;background:${col}"></span></span>`+
+    `<span class="c">${fmt(c)}</span><span class="p">${pct(c,total)}</span></div>`;
+}
+
+/* ---------- 설정 ---------- */
+function paintSetup(){
+  const set = (id,h)=>{ const e=$(id); e.textContent = h? h.name : "아직 안 골랐어요"; e.classList.toggle("empty",!h); };
+  set("tName",S.hT); set("oName",S.hO);
+  $("optAuto").checked = !!S.settings.auto;
+}
+function openSetup(){ paintSetup(); $("setup").hidden=false; }
+async function pick(which){
+  let h;
+  try{ h = await window.showDirectoryPicker({id: which==="t"?"kkulT":"kkulO", mode:"read"}); }
+  catch(e){ if(e.name!=="AbortError") msg("폴더를 열 수 없어요: "+esc(e.message)); return; }
+  const other = which==="t" ? S.hO : S.hT;
+  if(other && await h.isSameEntry(other)){ msg("꿀뷰 폴더와 원본 폴더가 같아요. 서로 다른 폴더를 골라 주세요."); return; }
+  if(which==="t"){
+    if(S.hT && !(await h.isSameEntry(S.hT))){ S.results={}; await put("results",S.results); }
+    S.hT = h; await put("hT",h);
+  }else{
+    if(S.hO && !(await h.isSameEntry(S.hO))){ S.index=null; S.bySize=null; S.fpO={}; S.results={}; dirCache.clear();
+      await put("index",null); await put("fpO",{}); await put("results",{}); }
+    S.hO = h; await put("hO",h);
+  }
+  msg(""); paintSetup(); render();
+}
+
+$("setupBtn").onclick = ()=>{ if($("setup").hidden) openSetup(); else $("setup").hidden=true; };
+$("setupClose").onclick = ()=>{ $("setup").hidden=true; };
+$("welcomeSetup").onclick = openSetup;
+$("pickT").onclick = ()=>pick("t");
+$("pickO").onclick = ()=>pick("o");
+$("optAuto").onchange = e=>{ S.settings.auto = e.target.checked; put("settings",S.settings); };
+$("refreshBtn").onclick = ()=>refresh();
+$("rescanBtn").onclick = ()=>{ $("setup").hidden=true; refresh({rescan:true}); };
+$("cancelBtn").onclick = ()=>{ if(S.abort) S.abort.abort(); };
+$("moreBtn").onclick = ()=>{ S.showAll=!S.showAll; render(); };
+$("resetBtn").onclick = async ()=>{
+  if(!confirm("고른 폴더, 원본 목록, 집계 기록을 모두 지울까요? 사진 파일은 건드리지 않아요.")) return;
+  await clearAll();
+  Object.assign(S,{hT:null,hO:null,index:null,bySize:null,fpO:{},results:{},colors:{},last:null,settings:{auto:true}});
+  dirCache.clear(); paintSetup(); render(); openSetup();
+};
+
+/* ---------- 시작 ---------- */
+async function boot(){
+  if(!("showDirectoryPicker" in window)){ $("unsupported").hidden=false; $("refreshBtn").disabled=true; }
+  const [hT,hO,index,fpO,results,colors,settings,last] = await Promise.all(
+    ["hT","hO","index","fpO","results","colors","settings","last"].map(get));
+  Object.assign(S,{hT:hT||null,hO:hO||null,index:index||null,fpO:fpO||{},results:results||{},colors:colors||{},last:last||null});
+  if(settings) S.settings = Object.assign({auto:true},settings);
+  if(S.index) buildBySize();
+  paintSetup();
+  render();
+}
+boot();
+
+if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+
+// 테스트용 창구
+window.KS = { S, refresh, render, put, get, useHandles: async (t,o)=>{ S.hT=t; S.hO=o; await put("hT",t); await put("hO",o); paintSetup(); render(); } };
+})();
+</script>
+</body>
+</html>
