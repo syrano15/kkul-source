@@ -89,7 +89,7 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18p
 .note.err{background:var(--warnbg)}
 
 /* 숫자 칸 */
-.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
 .tile .k{font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px}
 .tile .v{font-size:28px;font-weight:750;letter-spacing:-.02em;margin-top:2px}
@@ -121,7 +121,13 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18p
 .rk .no{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;font-size:13px}
 .rk .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:550}
 .rk .track{height:18px;position:relative}
-.rk .fill{position:absolute;left:0;top:0;bottom:0;border-radius:0 4px 4px 0;min-width:2px}
+.rk .fill{position:absolute;left:0;top:0;bottom:0;border-radius:0 4px 4px 0;min-width:2px;display:flex;overflow:hidden}
+.rk .fill i{display:block;height:100%;min-width:1px}
+.rk .fill i.g{opacity:.38}
+.rkkey{display:flex;gap:14px;font-size:12.5px;color:var(--muted);margin:0 0 10px 6px}
+.rkkey span{display:inline-flex;align-items:center;gap:6px}
+.rkkey i{width:14px;height:8px;border-radius:2px;background:var(--text2);display:inline-block}
+.rkkey i.g{opacity:.38}
 .rk .c{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 .rk .p{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
 .rk.sep{border-top:1px dashed var(--line2);margin-top:6px;padding-top:10px;border-radius:0}
@@ -142,6 +148,15 @@ details summary::-webkit-details-marker{display:none}
 details summary::before{content:"▸";color:var(--muted);font-size:12px;transition:transform .15s}
 details[open] summary::before{transform:rotate(90deg)}
 details .body{margin-top:12px}
+details summary .ss{font-weight:500;color:var(--muted);font-size:13px}
+.eh{font-size:14px;margin:18px 0 2px;font-weight:700}
+.eh:first-child{margin-top:0}
+.eh span{font-weight:500;color:var(--muted);font-size:13px;margin-left:4px}
+.ed{font-size:13px;color:var(--text2);margin:0 0 8px}
+.ed.warn{color:var(--warn);font-weight:600;margin-top:12px}
+.kv{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 14px;font-size:14px;max-width:520px}
+.kv span{color:var(--text2)}
+.kv b{font-variant-numeric:tabular-nums}
 .etclist{columns:2 260px;column-gap:24px;font-size:13.5px;color:var(--text2);margin:0;padding-left:18px}
 .etclist li{break-inside:avoid;word-break:break-all}
 
@@ -153,6 +168,7 @@ details .body{margin-top:12px}
 @media (max-width:860px){
   .grid2{grid-template-columns:1fr}
   .tiles{grid-template-columns:repeat(2,1fr)}
+  .tiles .tile:first-child{grid-column:1/-1}
 }
 @media (max-width:520px){
   .wrap{padding:16px 16px 32px}
@@ -223,6 +239,7 @@ details .body{margin-top:12px}
           </section>
           <section class="card">
             <h2>폴더 순위 <span class="sub" id="rankSub"></span></h2>
+            <div class="rkkey" id="rkKey" hidden><span><i></i>내용 일치</span><span><i class="g"></i>이름으로 추정</span></div>
             <div class="rank" id="rank"></div>
             <div class="more" id="moreWrap" hidden><button class="btn sm ghost" id="moreBtn"></button></div>
           </section>
@@ -235,10 +252,24 @@ details .body{margin-top:12px}
             </div>
           </details>
         </section>
+        <section class="card" id="guessCard" hidden>
+          <details>
+            <summary>이름으로 추정 <span class="ss" id="guessSub"></span></summary>
+            <div class="body">
+              <table><thead><tr><th>파일명</th><th>추정한 폴더</th></tr></thead><tbody id="guessBody"></tbody></table>
+            </div>
+          </details>
+        </section>
         <section class="card" id="etcCard" hidden>
           <details>
-            <summary>기타 <span style="font-weight:500;color:var(--muted);font-size:13px" id="etcSub"></span></summary>
-            <div class="body"><ul class="etclist" id="etcList"></ul></div>
+            <summary>기타 <span class="ss" id="etcSub"></span></summary>
+            <div class="body" id="etcBody"></div>
+          </details>
+        </section>
+        <section class="card" id="idxCard" hidden>
+          <details>
+            <summary>원본 목록 정보 <span class="ss" id="idxSub"></span></summary>
+            <div class="body" id="idxBody"></div>
           </details>
         </section>
         <div class="meta"><span id="mLast"></span><span id="mIndex"></span><span class="sp"></span><span id="verBot"></span></div>
@@ -258,12 +289,13 @@ details .body{margin-top:12px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION = "v1.0";
+const APP_VERSION = "v1.1";
 const $ = id => document.getElementById(id);
 $("verTop").textContent = APP_VERSION;
 $("verBot").textContent = APP_VERSION;
 
 const EXT = /\.(jpe?g|jfif|png|gif|webp|bmp|heic|heif|avif|tiff?)$/i;
+const LOGIC = 2;              // 판정 규칙 버전 — 바꾸면 추정·기타를 다시 본다
 const FP_CHUNK = 262144;      // 앞·뒤 256KB 로 지문을 뜬다
 const SLOTS = 8;              // 색을 가지는 폴더 수 (나머지는 "그 외")
 const RANK_SHOW = 20;
@@ -324,10 +356,13 @@ async function perm(h, ask){
 }
 
 // 폴더를 통째로 훑어 [상대경로, 크기, 수정시각] 목록을 만든다. 파일은 열지 않는다.
+// 사진이 아닌 파일 수, 못 읽은 폴더·파일도 세어 둔다 (조용히 건너뛰지 않는다).
 async function listDir(root, {signal, onProgress, keep}){
   const out = [], handles = keep ? new Map() : null;
   const queue = [[root,""]];
-  let active = 0, dirs = 0, lastPaint = 0;
+  const st = {dirs:0, other:0, otherExt:{}, errDirs:0, errFiles:0, samples:[]};
+  const fail = (kind,p,e)=>{ st[kind]++; if(st.samples.length<30) st.samples.push(p+"  ("+(e&&e.name||"오류")+")"); };
+  let active = 0, lastPaint = 0;
   async function worker(){
     for(;;){
       if(signal && signal.aborted) throw abortErr();
@@ -340,23 +375,24 @@ async function listDir(root, {signal, onProgress, keep}){
           for await (const [name,h] of dir.entries()){
             if(h.kind==="directory"){ if(name!=="$RECYCLE.BIN" && name!=="System Volume Information") queue.push([h,prefix+name+"/"]); }
             else if(EXT.test(name)) fh.push([h,prefix+name]);
+            else { st.other++; const m=/\.([^.\/]{1,8})$/.exec(name); const x=m?m[1].toLowerCase():"(확장자 없음)"; st.otherExt[x]=(st.otherExt[x]||0)+1; }
           }
-        }catch(e){ if(e.name==="AbortError") throw e; /* 못 여는 폴더는 건너뜀 */ }
+        }catch(e){ if(e.name==="AbortError" && signal && signal.aborted) throw e; fail("errDirs", prefix||"(최상위)", e); }
         for(let i=0;i<fh.length;i+=24){
           if(signal && signal.aborted) throw abortErr();
           await Promise.all(fh.slice(i,i+24).map(async ([h,p])=>{
-            try{ const f=await h.getFile(); out.push([p,f.size,f.lastModified]); if(handles) handles.set(p,h); }catch(e){}
+            try{ const f=await h.getFile(); out.push([p,f.size,f.lastModified]); if(handles) handles.set(p,h); }catch(e){ fail("errFiles",p,e); }
           }));
         }
-        dirs++;
+        st.dirs++;
         const now = performance.now();
-        if(onProgress && now-lastPaint>150){ lastPaint=now; onProgress(dirs,out.length); }
+        if(onProgress && now-lastPaint>150){ lastPaint=now; onProgress(st.dirs,out.length); }
       } finally { active--; }
     }
   }
   await Promise.all(Array.from({length:6},worker));
-  if(onProgress) onProgress(dirs,out.length);
-  return {files:out, handles};
+  if(onProgress) onProgress(st.dirs,out.length);
+  return {files:out, handles, st};
 }
 
 // 원본 폴더 안의 파일을 경로로 찾아 연다 (폴더 핸들은 캐시)
@@ -390,12 +426,19 @@ async function fingerprint(file){
 }
 
 function buildBySize(){
-  const m = new Map();
-  for(const e of S.index.files){ const a=m.get(e[1]); if(a) a.push(e); else m.set(e[1],[e]); }
-  S.bySize = m;
+  const m = new Map(), nm = new Map();
+  for(const e of S.index.files){
+    const a=m.get(e[1]); if(a) a.push(e); else m.set(e[1],[e]);
+    const n=base(e[0]).toLowerCase(), b=nm.get(n); if(b) b.push(e); else nm.set(n,[e]);
+  }
+  S.bySize = m; S.byName = nm;
 }
 
 // 꿀뷰 사진 하나의 출처를 정한다
+//  ok    : 내용이 같은 원본이 한 폴더에만 있다
+//  dup   : 내용이 같은 원본이 여러 폴더에 있다
+//  guess : 내용이 같은 원본은 없지만, 같은 파일명이 한 폴더에만 있다 (회전·보정·다시 저장된 사진)
+//  etc   : 그 밖. why = none(같은 이름도 없음) / many(같은 이름이 여러 폴더) / root(원본 최상위에만 있음)
 async function resolve(t, handle){
   const cands = S.bySize.get(t.size) || [];
   const hit = [];
@@ -410,11 +453,17 @@ async function resolve(t, handle){
       if(ofp===tfp) hit.push(c[0]);
     }catch(e){ if(e.name==="AbortError") throw e; }
   }
-  const tops = [...new Set(hit.map(topOf).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko"));
-  if(tops.length===0) return {st:"etc", tops:[]};
+  const tops = uniqTops(hit);
   if(tops.length===1) return {st:"ok", tops};
-  return {st:"dup", tops};
+  if(tops.length>1) return {st:"dup", tops};
+  // 내용으로 못 찾았으면 파일명으로 추정
+  const byN = (S.byName.get(t.name.toLowerCase())||[]).map(e=>e[0]);
+  const ntops = uniqTops(byN);
+  if(ntops.length===1) return {st:"guess", tops:ntops};
+  if(ntops.length>1) return {st:"etc", tops:ntops, why:"many"};
+  return {st:"etc", tops:[], why:(hit.length||byN.length)?"root":"none"};
 }
+function uniqTops(paths){ return [...new Set(paths.map(topOf).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko")); }
 
 /* ---------- 진행 표시 ---------- */
 function prog(stage, detail, frac){
@@ -442,7 +491,7 @@ async function buildIndex(signal){
   const r = await listDir(S.hO, {signal, onProgress:(d,n)=>prog("원본 목록 만드는 중",
     `폴더 ${fmt(d)}개 · 사진 ${fmt(n)}장 · ${dur(performance.now()-t0)}`, null)});
   const gen = ((S.index && S.index.gen)||0) + 1;
-  S.index = {gen, builtAt:Date.now(), root:S.hO.name, files:r.files};
+  S.index = {gen, builtAt:Date.now(), root:S.hO.name, files:r.files, stat:r.st};
   dirCache.clear();
   buildBySize();
   // 목록에서 사라진 원본의 지문은 버린다
@@ -468,6 +517,7 @@ async function refresh(opt={}){
   const signal = S.abort.signal;
   $("refreshBtn").disabled = true; $("rescanBtn").disabled = true;
   const t0 = performance.now();
+  let partial = null;
   try{
     const seenAt = Date.now();
     prog("꿀뷰 폴더 읽는 중", "", null);
@@ -478,9 +528,11 @@ async function refresh(opt={}){
     let rescanned = !!opt.rescan || false;
     for(let pass=0; pass<2; pass++){
       const next = {}, todo = [];
+      partial = next;
       for(const [p,size,mtime] of tr.files){
         const k = keyOf(p,size,mtime), c = S.results[k];
-        if(c && (c.st!=="etc" || c.gen===S.index.gen)) next[k] = c;
+        // 내용으로 확정된 것(ok·dup)은 그대로 쓴다. 추정·기타는 원본 목록이나 판정 규칙이 바뀌면 다시 본다.
+        if(c && (c.st==="ok" || c.st==="dup" || (c.gen===S.index.gen && c.lv===LOGIC))) next[k] = c;
         else todo.push([k,p,size,mtime,c]);
       }
       for(let i=0;i<todo.length;i++){
@@ -488,10 +540,10 @@ async function refresh(opt={}){
         const [k,p,size,mtime,c] = todo[i];
         if(i%4===0) prog("출처 찾는 중", `새 사진 ${fmt(i)} / ${fmt(todo.length)}`, todo.length?i/todo.length:1);
         const r = await resolve({name:base(p), size, mtime}, tr.handles.get(p));
-        next[k] = {st:r.st, tops:r.tops, gen:S.index.gen, seen:c?c.seen:seenAt, name:base(p)};
+        next[k] = {st:r.st, tops:r.tops, why:r.why, gen:S.index.gen, lv:LOGIC, seen:c?c.seen:seenAt, name:base(p)};
         if(i%200===199){ await put("fpO", S.fpO); }
       }
-      S.results = next;
+      S.results = next; partial = null;
       await put("results", S.results);
       await put("fpO", S.fpO);
       // 원본 목록을 만든 뒤에 들어온 사진인데 출처를 못 찾았다 → 원본 쪽에 새 폴더가 생겼을 수 있다
@@ -507,7 +559,11 @@ async function refresh(opt={}){
     await put("last", S.last);
     render();
   }catch(e){
-    if(e.name==="AbortError") msg("중단했어요. 이미 확인한 사진은 기억해 두었으니, 다음 갱신은 이어서 합니다.");
+    if(e.name==="AbortError"){
+      // 여기까지 판정한 것은 남긴다
+      if(partial){ S.results = Object.assign({}, S.results, partial); try{ await put("results",S.results); }catch(_){} render(); }
+      msg("중단했어요. 여기까지 확인한 사진은 기억해 두었으니, 다음 갱신은 이어서 합니다.");
+    }
     else if(e.name==="NotFoundError") msg("폴더를 찾을 수 없어요. 옮겨졌거나 이름이 바뀌었다면 <b>폴더 설정</b>에서 다시 골라 주세요.");
     else { console.error(e); msg("오류가 났어요: "+esc(e.message||String(e))); }
     // 중단돼도 그때까지 뜬 지문은 남긴다
@@ -524,16 +580,18 @@ function esc(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 function pct(n,t){ if(!t) return "0%"; const v=n/t*100; return (v>=10||v===0?Math.round(v):v.toFixed(1))+"%"; }
 
 function tally(){
-  const by = new Map(); let dup=0, etc=0, total=0;
-  const dups = [], etcs = [];
+  const by = new Map(), gby = new Map(); let ok=0, guess=0, dup=0, etc=0, total=0;
+  const dups = [], etcs = [], guesses = [];
   for(const r of Object.values(S.results)){
     total++;
-    if(r.st==="ok") by.set(r.tops[0],(by.get(r.tops[0])||0)+1);
+    if(r.st==="ok"){ ok++; by.set(r.tops[0],(by.get(r.tops[0])||0)+1); }
+    else if(r.st==="guess"){ guess++; guesses.push(r); by.set(r.tops[0],(by.get(r.tops[0])||0)+1); gby.set(r.tops[0],(gby.get(r.tops[0])||0)+1); }
     else if(r.st==="dup"){ dup++; dups.push(r); }
-    else { etc++; etcs.push(r.name); }
+    else { etc++; etcs.push(r); }
   }
-  const rows = [...by.entries()].sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],"ko"));
-  return {rows, dup, etc, total, dups, etcs, ok: total-dup-etc};
+  // rows: [폴더, 장수(추정 포함), 그중 추정]
+  const rows = [...by.entries()].map(([n,c])=>[n,c,gby.get(n)||0]).sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],"ko"));
+  return {rows, ok, guess, dup, etc, total, dups, etcs, guesses};
 }
 
 // 색은 폴더에 붙는다. 순위가 바뀌어도 같은 폴더는 같은 색.
@@ -573,7 +631,8 @@ function render(){
   // 숫자 칸
   $("tiles").innerHTML = [
     ["꿀뷰 사진", fmt(T.total), "", ""],
-    ["출처 폴더 확인", fmt(T.ok), pct(T.ok,T.total), "var(--accent)"],
+    ["내용 일치", fmt(T.ok), pct(T.ok,T.total), "var(--accent)"],
+    ["이름으로 추정", fmt(T.guess), pct(T.guess,T.total), "color-mix(in srgb,var(--accent) 40%,transparent)"],
     ["중복 (여러 폴더)", fmt(T.dup), pct(T.dup,T.total), "var(--dup)"],
     ["기타", fmt(T.etc), pct(T.etc,T.total), "var(--etc)"],
   ].map(([k,v,p,c])=>`<div class="tile"><div class="k">${c?`<span class="dot" style="background:${c}"></span>`:""}${k}</div><div class="v">${v}${p?`<small>${p}</small>`:""}</div></div>`).join("");
@@ -618,7 +677,7 @@ function render(){
   const max = Math.max(1, ...T.rows.map(r=>r[1]), T.dup, T.etc);
   const show = S.showAll ? T.rows : T.rows.slice(0,RANK_SHOW);
   $("rankSub").textContent = `폴더 ${fmt(T.rows.length)}개`;
-  let html = show.map(([n,c],i)=>rkRow(i+1,n,c,colors.get(n)||"var(--other)",max,T.total)).join("");
+  let html = show.map(([n,c,g],i)=>rkRow(i+1,n,c,colors.get(n)||"var(--other)",max,T.total,"",g)).join("");
   const sp = [];
   if(T.dup) sp.push(["중복", T.dup, "var(--dup)"]);
   if(T.etc) sp.push(["기타", T.etc, "var(--etc)"]);
@@ -627,7 +686,8 @@ function render(){
   $("moreWrap").hidden = T.rows.length<=RANK_SHOW;
   $("moreBtn").textContent = S.showAll ? "상위 20개만 보기" : `나머지 ${T.rows.length-RANK_SHOW}개 폴더 더 보기`;
   $("rank").querySelectorAll(".rk").forEach(el=>{
-    el.onmousemove = e=>tipOn(e,`<b>${esc(el.dataset.n)}</b> · ${fmt(+el.dataset.c)}장 · ${pct(+el.dataset.c,T.total)}`);
+    const g = +el.dataset.g||0;
+    el.onmousemove = e=>tipOn(e,`<b>${esc(el.dataset.n)}</b> · ${fmt(+el.dataset.c)}장 · ${pct(+el.dataset.c,T.total)}${g?` · 그중 이름 추정 ${fmt(g)}장`:""}`);
     el.onmouseleave = tipOff;
   });
 
@@ -637,18 +697,57 @@ function render(){
   $("dupBody").innerHTML = T.dups.sort((a,b)=>a.name.localeCompare(b.name,"ko"))
     .map(r=>`<tr><td class="fn">${esc(r.name)}</td><td>${r.tops.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</td></tr>`).join("");
 
-  // 기타
+  // 이름으로 추정
+  $("rkKey").hidden = !T.guess;
+  $("guessCard").hidden = !T.guess;
+  $("guessSub").textContent = `${fmt(T.guess)}장 — 내용은 다르지만 같은 파일명이 한 폴더에만 있음 (회전·보정·다시 저장된 사진)`;
+  $("guessBody").innerHTML = capRows(T.guesses.sort((a,b)=>a.name.localeCompare(b.name,"ko")),
+    r=>`<tr><td class="fn">${esc(r.name)}</td><td><span class="chip">${esc(r.tops[0])}</span></td></tr>`, 2);
+
+  // 기타 — 이유별로 나눠 보여 준다
   $("etcCard").hidden = !T.etc;
-  $("etcSub").textContent = `${fmt(T.etc)}장 — 원본 폴더에서 못 찾은 사진`;
-  const el = T.etcs.sort((a,b)=>a.localeCompare(b,"ko"));
-  $("etcList").innerHTML = el.slice(0,1000).map(n=>`<li>${esc(n)}</li>`).join("") + (el.length>1000?`<li>… 외 ${fmt(el.length-1000)}장</li>`:"");
+  $("etcSub").textContent = `${fmt(T.etc)}장`;
+  const byWhy = {none:[], many:[], root:[]};
+  for(const r of T.etcs) (byWhy[r.why]||byWhy.none).push(r);
+  for(const k in byWhy) byWhy[k].sort((a,b)=>a.name.localeCompare(b.name,"ko"));
+  const grp = (title, desc, list, row)=> list.length ? `<h3 class="eh">${title} <span>${fmt(list.length)}장</span></h3><p class="ed">${desc}</p>`+row(list) : "";
+  $("etcBody").innerHTML =
+    grp("원본에 같은 파일명도 없음", "원본 폴더 밖(예: D:\\qr)에서 왔거나, 원본에서 지웠거나 이름을 바꾼 사진이에요.", byWhy.none,
+      l=>`<ul class="etclist">${capList(l)}</ul>`) +
+    grp("같은 파일명이 여러 폴더에 있음", "내용이 일치하는 원본은 없고, 이름만으로는 어느 폴더인지 정할 수 없어요.", byWhy.many,
+      l=>`<table><tbody>${capRows(l, r=>`<tr><td class="fn">${esc(r.name)}</td><td>${r.tops.slice(0,6).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}${r.tops.length>6?`<span class="chip">외 ${r.tops.length-6}곳</span>`:""}</td></tr>`, 2)}</tbody></table>`) +
+    grp("원본 폴더 최상위에만 있음", "하위 폴더가 아닌 원본 폴더 바로 아래에 있는 사진이에요.", byWhy.root,
+      l=>`<ul class="etclist">${capList(l)}</ul>`);
+
+  // 원본 목록 정보
+  const st = S.index && S.index.stat;
+  const errs = st ? st.errDirs + st.errFiles : 0;
+  $("idxCard").hidden = !S.index;
+  if(S.index){
+    if(!st){
+      $("idxBody").innerHTML = `<p class="ed">v1.0 에서 만든 원본 목록이라 자세한 정보가 없어요. 폴더 설정의 <b>원본 다시 훑기</b>를 한 번 하면 나옵니다.</p>`;
+    }else{
+      const ext = Object.entries(st.otherExt).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([x,n])=>`<span class="chip">${esc(x)} ${fmt(n)}</span>`).join("");
+      $("idxBody").innerHTML =
+        `<div class="kv"><span>폴더</span><b>${fmt(st.dirs)}개</b><span>사진</span><b>${fmt(S.index.files.length)}장</b>`+
+        `<span>사진이 아닌 파일</span><b>${fmt(st.other)}개</b><span>합계</span><b>${fmt(S.index.files.length+st.other+st.errFiles)}개</b></div>`+
+        (ext?`<p class="ed" style="margin-top:10px">사진이 아닌 파일: ${ext}</p>`:"")+
+        (errs?`<p class="ed warn">크롬이 읽지 못한 폴더 ${fmt(st.errDirs)}개 · 파일 ${fmt(st.errFiles)}개 — 이 안의 사진은 집계에서 빠져요.</p><ul class="etclist">${st.samples.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`
+              :`<p class="ed">읽지 못한 폴더나 파일은 없어요.</p>`);
+    }
+    $("idxSub").textContent = errs ? `읽기 실패 ${fmt(errs)}건` : "";
+  }
 
   $("mLast").textContent = S.last ? `마지막 갱신 ${when(S.last.at)}${S.last.took?` (${dur(S.last.took)})`:""}` : "";
   $("mIndex").textContent = S.index ? `원본 목록 ${when(S.index.builtAt)} · 사진 ${fmt(S.index.files.length)}장` : "";
 }
-function rkRow(no,n,c,col,max,total,cls=""){
-  return `<div class="rk ${cls}" data-n="${esc(n)}" data-c="${c}"><span class="no">${no}</span><span class="nm" title="${esc(n)}">${esc(n)}</span>`+
-    `<span class="track"><span class="fill" style="width:${(c/max*100).toFixed(2)}%;background:${col}"></span></span>`+
+function capList(l, n=1000){ return l.slice(0,n).map(r=>`<li>${esc(r.name)}</li>`).join("") + (l.length>n?`<li>… 외 ${fmt(l.length-n)}장</li>`:""); }
+function capRows(l, row, cols, n=1000){ return l.slice(0,n).map(row).join("") + (l.length>n?`<tr><td colspan="${cols}">… 외 ${fmt(l.length-n)}장</td></tr>`:""); }
+function rkRow(no,n,c,col,max,total,cls="",g=0){
+  const sure = c-g;
+  return `<div class="rk ${cls}" data-n="${esc(n)}" data-c="${c}" data-g="${g}"><span class="no">${no}</span><span class="nm" title="${esc(n)}">${esc(n)}</span>`+
+    `<span class="track"><span class="fill" style="width:${(c/max*100).toFixed(2)}%">`+
+    (sure?`<i style="flex:${sure};background:${col}"></i>`:"")+(g?`<i class="g" style="flex:${g};background:${col}"></i>`:"")+`</span></span>`+
     `<span class="c">${fmt(c)}</span><span class="p">${pct(c,total)}</span></div>`;
 }
 
